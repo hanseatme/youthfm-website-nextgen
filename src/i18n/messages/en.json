@@ -1,0 +1,272 @@
+{
+  "common": {
+    "appName": "Next Generation Radio",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "nav": {
+    "home": "Home",
+    "topSongs": "Top 10 Songs",
+    "community": "Community",
+    "leaderboard": "Leaderboard",
+    "shop": "Shop",
+    "profile": "Profile",
+    "settings": "Settings",
+    "admin": "Admin",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout"
+  },
+  "topSongs": {
+    "title": "Top 10 Songs",
+    "subtitle": "Based on total community ratings",
+    "avg": "avg rating",
+    "topReaction": "Top reaction",
+    "unknownArtist": "Unknown artist",
+    "empty": "No ratings yet."
+  },
+  "auth": {
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Sign in to continue",
+    "registerTitle": "Create account",
+    "registerSubtitle": "Join the community",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "forgotPassword": "Forgot password?",
+    "rememberMe": "Remember me",
+    "loginButton": "Sign in",
+    "registerButton": "Sign up",
+    "orContinueWith": "Or continue with",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "magicLink": "Send magic link",
+    "magicLinkSent": "We've sent you a link!",
+    "checkEmail": "Check your email",
+    "errors": {
+      "invalidCredentials": "Invalid credentials",
+      "emailRequired": "Email is required",
+      "passwordRequired": "Password is required",
+      "passwordMismatch": "Passwords don't match"
+    }
+  },
+  "player": {
+    "nowPlaying": "Now playing",
+    "liveListeners": "{count} listening now",
+    "play": "Play",
+    "pause": "Pause",
+    "volume": "Volume",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "quality": "Quality",
+    "standardQuality": "Standard (128kbps)",
+    "highQuality": "High (256kbps)",
+    "nextUp": "Next up",
+    "show": "Show"
+  },
+  "feedback": {
+    "title": "How do you like this song?",
+    "loveIt": "Love it",
+    "likeIt": "Like it",
+    "neutral": "Neutral",
+    "dislike": "Not for me",
+    "skip": "Please skip",
+    "tellUsMore": "Tell us more!",
+    "energy": "Energy",
+    "energetic": "Energetic",
+    "relaxed": "Relaxed",
+    "mood": "Mood",
+    "moods": {
+      "happy": "Happy",
+      "melancholic": "Melancholic",
+      "motivating": "Motivating",
+      "meditative": "Meditative",
+      "intense": "Intense"
+    },
+    "fitsFor": "Fits for...",
+    "activities": {
+      "work": "Work",
+      "sport": "Sports",
+      "evening": "Evening",
+      "morning": "Morning",
+      "party": "Party",
+      "sleep": "Sleep"
+    },
+    "thankYou": "Thanks for your feedback!",
+    "vibesEarned": "+{amount} Vibes"
+  },
+  "duel": {
+    "title": "Song Duel",
+    "subtitle": "Who's up next?",
+    "votingEndsIn": "{time} left to vote",
+    "totalVotes": "{count} votes so far",
+    "voteFor": "Vote for",
+    "preview": "Preview",
+    "headToHead": "Head to head!",
+    "winner": "Winner",
+    "nextDuel": "Next duel in {time}",
+    "youVotedFor": "You voted for",
+    "winnerPicked": "Winner picked!",
+    "bonusVibes": "+{amount} Bonus Vibes"
+  },
+  "vibes": {
+    "title": "Vibes",
+    "balance": "Your balance",
+    "total": "Total earned",
+    "available": "Available",
+    "streak": "Streak",
+    "days": "days",
+    "multiplier": "Multiplier",
+    "freezes": "Freezes",
+    "history": "History",
+    "earnMore": "Earn more"
+  },
+  "streak": {
+    "title": "Your Streak",
+    "days": "{count} days",
+    "keepItGoing": "Keep your streak going!",
+    "listenToday": "Haven't listened today",
+    "maintained": "Streak maintained!",
+    "lost": "Streak lost",
+    "usedFreeze": "Freeze used",
+    "warning": "Streak warning!",
+    "warningMessage": "You haven't listened today. Your streak ends in {time}."
+  },
+  "badges": {
+    "title": "Badges",
+    "unlocked": "Unlocked",
+    "locked": "Locked",
+    "progress": "Progress",
+    "newBadge": "New badge!",
+    "categories": {
+      "listening": "Listening",
+      "feedback": "Feedback",
+      "duel": "Duels",
+      "streak": "Streaks",
+      "community": "Community",
+      "event": "Events"
+    }
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "weekly": "This week",
+    "monthly": "This month",
+    "allTime": "All time",
+    "streaks": "Longest streaks",
+    "rank": "Rank",
+    "yourRank": "Your rank"
+  },
+  "community": {
+    "title": "Community",
+    "subtitle": "Connect with other listeners",
+    "feed": "Feed",
+    "members": "Members",
+    "online": "Online",
+    "chat": {
+      "title": "Live Chat",
+      "loading": "Loading messages...",
+      "empty": "No messages yet. Start the conversation!",
+      "placeholder": "Type a message...",
+      "loginRequired": "Log in to chat"
+    },
+    "channels": {
+      "main": "Main chat",
+      "duel": "Duel chat",
+      "theme": "Theme chat"
+    },
+    "topListeners": {
+      "title": "Top Listeners"
+    },
+    "activity": {
+      "title": "Activity"
+    },
+    "events": {
+      "badgeUnlocked": "{user} unlocked '{badge}'!",
+      "streakMilestone": "{user} reached a {days} day streak!",
+      "duelWinner": "'{song}' wins the duel with {percent}%!",
+      "newMember": "Welcome {user}!"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "editProfile": "Edit profile",
+    "username": "Username",
+    "displayName": "Display name",
+    "location": "Location",
+    "bio": "About me",
+    "avatar": "Avatar",
+    "chooseAvatar": "Choose avatar",
+    "stats": {
+      "hoursListened": "Minutes listened",
+      "feedbackGiven": "Feedbacks",
+      "duelsParticipated": "Duels",
+      "winRate": "Win rate"
+    },
+    "visibility": {
+      "title": "Visibility",
+      "public": "Public",
+      "followers": "Followers only",
+      "private": "Private"
+    },
+    "memberSince": "Member since {date}"
+  },
+  "shop": {
+    "title": "Vibes Shop",
+    "categories": {
+      "influence": "Influence",
+      "personalization": "Personalization",
+      "status": "Status",
+      "extras": "Extras"
+    },
+    "purchase": "Purchase",
+    "purchased": "Purchased",
+    "notEnoughVibes": "Not enough Vibes",
+    "confirmPurchase": "Confirm purchase",
+    "purchaseSuccess": "Successfully purchased!"
+  },
+  "theme": {
+    "title": "Theme of the Day",
+    "perfectFor": "Perfect for",
+    "communityQuestion": "Community asks",
+    "funFact": "Fun Fact"
+  },
+  "admin": {
+    "title": "Admin Area",
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "duels": "Duels",
+    "themes": "Themes",
+    "avatars": "Profile Pictures",
+    "moderation": "Moderation",
+    "settings": "Settings",
+    "stats": {
+      "totalUsers": "Total users",
+      "activeToday": "Active today",
+      "totalVibes": "Total Vibes",
+      "activeDuels": "Active duels"
+    }
+  },
+  "errors": {
+    "notFound": "Page not found",
+    "unauthorized": "Unauthorized",
+    "serverError": "Server error",
+    "networkError": "Network error"
+  }
+}

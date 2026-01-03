@@ -1,0 +1,62 @@
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+Error: MISSING_MESSAGE: Could not resolve `topSongs.topReaction` in messages for locale `de`.
+    at <unknown> (src\app\[locale]\(main)\top-songs\page.tsx:106:32)
+    at Array.map (<anonymous>)
+    at TopSongsPage (src\app\[locale]\(main)\top-songs\page.tsx:75:24)
+  104 |                       <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+  105 |                         {getReactionIcon(song.top_reaction)}
+> 106 |                         <span>{t('topReaction')}</span>
+      |                                ^
+  107 |                       </div>
+  108 |                     </div>
+  109 |                   </div> {
+  code: 'MISSING_MESSAGE',
+  originalMessage: 'Could not resolve `topSongs.topReaction` in messages for locale `de`.'
+}
+Error: MISSING_MESSAGE: Could not resolve `topSongs.topReaction` in messages for locale `de`.
+    at <unknown> (src\app\[locale]\(main)\top-songs\page.tsx:106:32)
+    at Array.map (<anonymous>)
+    at TopSongsPage (src\app\[locale]\(main)\top-songs\page.tsx:75:24)
+  104 |                       <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+  105 |                         {getReactionIcon(song.top_reaction)}
+> 106 |                         <span>{t('topReaction')}</span>
+      |                                ^
+  107 |                       </div>
+  108 |                     </div>
+  109 |                   </div> {
+  code: 'MISSING_MESSAGE',
+  originalMessage: 'Could not resolve `topSongs.topReaction` in messages for locale `de`.'
+}
+Theme generation error: Error: 401 You didn't provide an API key. You need to provide your API key in an Authorization header using Bearer auth (i.e. Authorization: Bearer YOUR_KEY), or as the password field (with blank username) if you're accessing the API from your browser and are prompted for a username and password. You can obtain an API key from https://platform.openai.com/account/api-keys.
+    at async POST (src\app\api\openai\generate-theme\route.ts:47:24)
+  45 |
+  46 |     // Generate content
+> 47 |     const completion = await openai.chat.completions.create({
+     |                        ^
+  48 |       model: 'gpt-5-mini',
+  49 |       messages: [
+  50 |         { role: 'system', content: SYSTEM_PROMPT }, {
+  status: 401,
+  headers: Headers {
+    date: 'Thu, 01 Jan 2026 22:31:31 GMT',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': '496',
+    connection: 'keep-alive',
+    vary: 'Origin',
+    'x-request-id': 'req_7ed616aded9749e987752ba6f472f288',
+    'x-envoy-upstream-service-time': '1',
+    'x-openai-proxy-wasm': 'v0.1',
+    'cf-cache-status': 'DYNAMIC',
+    'set-cookie': '__cf_bm=80TZbJTuEhYMSNPaWPbX39RoKM7sd.h2dShc.tmMAZ4-1767306691-1.0.1.1-vkkK1YcqbvAeQZciRQMpOuUsAylV7cAvi9HSzVazHdfMkuljkTB_wxPRcdBpgDAr7I1xE.lAfY4qojnB8MTobf_zV9wIzSPGTNgOB1_ArkQ; path=/; expires=Thu, 01-Jan-26 23:01:31 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=rlT65u8RiEPvHVBZdX8YkdS9.dkKbtwaTLwwwtn35rg-1767306691247-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'x-content-type-options': 'nosniff',
+    server: 'cloudflare',
+    'cf-ray': '9b7577a359fb62dd-HAM',
+    'alt-svc': 'h3=":443"; ma=86400'
+  },
+  requestID: 'req_7ed616aded9749e987752ba6f472f288',
+  error: [Object],
+  code: null,
+  param: null,
+  type: 'invalid_request_error'
+}

@@ -1,0 +1,272 @@
+{
+  "common": {
+    "appName": "Next Generation Radio",
+    "loading": "Laden...",
+    "error": "Ein Fehler ist aufgetreten",
+    "retry": "Erneut versuchen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "back": "Zurück",
+    "next": "Weiter",
+    "submit": "Absenden",
+    "search": "Suchen",
+    "filter": "Filtern",
+    "sort": "Sortieren",
+    "all": "Alle",
+    "none": "Keine",
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "nav": {
+    "home": "Home",
+    "topSongs": "Top 10 Songs",
+    "community": "Community",
+    "leaderboard": "Rangliste",
+    "shop": "Shop",
+    "profile": "Profil",
+    "settings": "Einstellungen",
+    "admin": "Admin",
+    "login": "Anmelden",
+    "register": "Registrieren",
+    "logout": "Abmelden"
+  },
+  "topSongs": {
+    "title": "Top 10 Songs",
+    "subtitle": "Basierend auf den Gesamtbewertungen der Community",
+    "avg": "Ø Rating",
+    "topReaction": "Häufigste Reaktion",
+    "unknownArtist": "Unbekannt",
+    "empty": "Noch keine Bewertungen vorhanden."
+  },
+  "auth": {
+    "loginTitle": "Willkommen zurück",
+    "loginSubtitle": "Melde dich an, um fortzufahren",
+    "registerTitle": "Konto erstellen",
+    "registerSubtitle": "Werde Teil der Community",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "forgotPassword": "Passwort vergessen?",
+    "rememberMe": "Angemeldet bleiben",
+    "loginButton": "Anmelden",
+    "registerButton": "Registrieren",
+    "orContinueWith": "Oder fortfahren mit",
+    "noAccount": "Noch kein Konto?",
+    "hasAccount": "Bereits ein Konto?",
+    "magicLink": "Magic Link senden",
+    "magicLinkSent": "Wir haben dir einen Link gesendet!",
+    "checkEmail": "Überprüfe deine E-Mails",
+    "errors": {
+      "invalidCredentials": "Ungültige Anmeldedaten",
+      "emailRequired": "E-Mail ist erforderlich",
+      "passwordRequired": "Passwort ist erforderlich",
+      "passwordMismatch": "Passwörter stimmen nicht überein"
+    }
+  },
+  "player": {
+    "nowPlaying": "Läuft gerade",
+    "liveListeners": "{count} hören gerade zu",
+    "play": "Abspielen",
+    "pause": "Pausieren",
+    "volume": "Lautstärke",
+    "mute": "Stummschalten",
+    "unmute": "Ton an",
+    "quality": "Qualität",
+    "standardQuality": "Standard (128kbps)",
+    "highQuality": "Hoch (256kbps)",
+    "nextUp": "Als nächstes",
+    "show": "Sendung"
+  },
+  "feedback": {
+    "title": "Wie gefällt dir dieser Song?",
+    "loveIt": "Liebe es",
+    "likeIt": "Gefällt mir",
+    "neutral": "Neutral",
+    "dislike": "Nicht meins",
+    "skip": "Bitte skip",
+    "tellUsMore": "Sag uns mehr!",
+    "energy": "Energie",
+    "energetic": "Energetisch",
+    "relaxed": "Entspannt",
+    "mood": "Stimmung",
+    "moods": {
+      "happy": "Fröhlich",
+      "melancholic": "Melancholisch",
+      "motivating": "Motivierend",
+      "meditative": "Meditativ",
+      "intense": "Intensiv"
+    },
+    "fitsFor": "Passt für...",
+    "activities": {
+      "work": "Arbeit",
+      "sport": "Sport",
+      "evening": "Abend",
+      "morning": "Morgen",
+      "party": "Party",
+      "sleep": "Einschlafen"
+    },
+    "thankYou": "Danke für dein Feedback!",
+    "vibesEarned": "+{amount} Vibes"
+  },
+  "duel": {
+    "title": "Song-Duell",
+    "subtitle": "Wer kommt als nächstes?",
+    "votingEndsIn": "Noch {time} zum Abstimmen",
+    "totalVotes": "{count} Stimmen bisher",
+    "voteFor": "Stimme für",
+    "preview": "Vorschau",
+    "headToHead": "Kopf-an-Kopf-Rennen!",
+    "winner": "Gewinner",
+    "nextDuel": "Nächstes Duell in {time}",
+    "youVotedFor": "Du hast gestimmt für",
+    "winnerPicked": "Gewinner gewählt!",
+    "bonusVibes": "+{amount} Bonus-Vibes"
+  },
+  "vibes": {
+    "title": "Vibes",
+    "balance": "Dein Guthaben",
+    "total": "Gesamt verdient",
+    "available": "Verfügbar",
+    "streak": "Streak",
+    "days": "Tage",
+    "multiplier": "Multiplikator",
+    "freezes": "Freezes",
+    "history": "Verlauf",
+    "earnMore": "Mehr verdienen"
+  },
+  "streak": {
+    "title": "Dein Streak",
+    "days": "{count} Tage",
+    "keepItGoing": "Halte deinen Streak!",
+    "listenToday": "Heute noch nicht gehört",
+    "maintained": "Streak gehalten!",
+    "lost": "Streak verloren",
+    "usedFreeze": "Freeze verwendet",
+    "warning": "Streak-Warnung!",
+    "warningMessage": "Du hast heute noch nicht gehört. Dein Streak endet in {time}."
+  },
+  "badges": {
+    "title": "Badges",
+    "unlocked": "Freigeschaltet",
+    "locked": "Gesperrt",
+    "progress": "Fortschritt",
+    "newBadge": "Neues Badge!",
+    "categories": {
+      "listening": "Hören",
+      "feedback": "Feedback",
+      "duel": "Duelle",
+      "streak": "Streaks",
+      "community": "Community",
+      "event": "Events"
+    }
+  },
+  "leaderboard": {
+    "title": "Rangliste",
+    "weekly": "Diese Woche",
+    "monthly": "Dieser Monat",
+    "allTime": "Alle Zeit",
+    "streaks": "Längste Streaks",
+    "rank": "Rang",
+    "yourRank": "Dein Rang"
+  },
+  "community": {
+    "title": "Community",
+    "subtitle": "Verbinde dich mit anderen Hörern",
+    "feed": "Feed",
+    "members": "Mitglieder",
+    "online": "Online",
+    "chat": {
+      "title": "Live Chat",
+      "loading": "Nachrichten werden geladen...",
+      "empty": "Noch keine Nachrichten. Starte die Konversation!",
+      "placeholder": "Nachricht schreiben...",
+      "loginRequired": "Melde dich an, um zu chatten"
+    },
+    "channels": {
+      "main": "Haupt-Chat",
+      "duel": "Duell-Chat",
+      "theme": "Themen-Chat"
+    },
+    "topListeners": {
+      "title": "Top Hörer"
+    },
+    "activity": {
+      "title": "Aktivität"
+    },
+    "events": {
+      "badgeUnlocked": "{user} hat '{badge}' freigeschaltet!",
+      "streakMilestone": "{user} hat {days} Tage Streak erreicht!",
+      "duelWinner": "'{song}' gewinnt das Duell mit {percent}%!",
+      "newMember": "Willkommen {user}!"
+    }
+  },
+  "profile": {
+    "title": "Profil",
+    "editProfile": "Profil bearbeiten",
+    "username": "Benutzername",
+    "displayName": "Anzeigename",
+    "location": "Wohnort",
+    "bio": "Über mich",
+    "avatar": "Avatar",
+    "chooseAvatar": "Avatar auswählen",
+    "stats": {
+      "hoursListened": "Hörminuten",
+      "feedbackGiven": "Feedbacks",
+      "duelsParticipated": "Duelle",
+      "winRate": "Gewinnrate"
+    },
+    "visibility": {
+      "title": "Sichtbarkeit",
+      "public": "Öffentlich",
+      "followers": "Nur Follower",
+      "private": "Privat"
+    },
+    "memberSince": "Mitglied seit {date}"
+  },
+  "shop": {
+    "title": "Vibes-Shop",
+    "categories": {
+      "influence": "Einfluss",
+      "personalization": "Personalisierung",
+      "status": "Status",
+      "extras": "Extras"
+    },
+    "purchase": "Kaufen",
+    "purchased": "Gekauft",
+    "notEnoughVibes": "Nicht genug Vibes",
+    "confirmPurchase": "Kauf bestätigen",
+    "purchaseSuccess": "Erfolgreich gekauft!"
+  },
+  "theme": {
+    "title": "Thema des Tages",
+    "perfectFor": "Perfekt für",
+    "communityQuestion": "Community fragt",
+    "funFact": "Fun Fact"
+  },
+  "admin": {
+    "title": "Admin-Bereich",
+    "dashboard": "Dashboard",
+    "users": "Benutzer",
+    "duels": "Duelle",
+    "themes": "Themen",
+    "avatars": "Profilbilder",
+    "moderation": "Moderation",
+    "settings": "Einstellungen",
+    "stats": {
+      "totalUsers": "Benutzer gesamt",
+      "activeToday": "Heute aktiv",
+      "totalVibes": "Vibes gesamt",
+      "activeDuels": "Aktive Duelle"
+    }
+  },
+  "errors": {
+    "notFound": "Seite nicht gefunden",
+    "unauthorized": "Nicht autorisiert",
+    "serverError": "Serverfehler",
+    "networkError": "Netzwerkfehler"
+  }
+}

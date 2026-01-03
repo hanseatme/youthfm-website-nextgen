@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run build:*)",
+      "Bash(curl:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm run dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(PGPASSWORD='your-super-secret-and-long-postgres-password' psql:*)",
+      "Bash(node check-duels.js:*)",
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Bash(findstr:*)",
+      "Bash(node check-feedback-schema.js:*)",
+      "Bash(PGPASSWORD='your-super-secret-and-long-postgres-password' psql -h 192.168.178.53 -p 6543 -U postgres -d postgres -c \"SELECT name FROM storage.buckets;\")",
+      "Bash(node scripts/run-storage-migration.js:*)",
+      "Bash(NEXT_PUBLIC_SUPABASE_URL=http://192.168.178.53:8000 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE node:*)",
+      "Bash(node scripts/apply-storage-migration.js:*)",
+      "Bash(node scripts/create-buckets.js:*)",
+      "Bash(node scripts/run-sql.js:*)",
+      "Bash(node scripts/check-tables.js:*)",
+      "Bash(netstat:*)",
+      "Bash(wmic process where \"name=''node.exe''\" delete)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
