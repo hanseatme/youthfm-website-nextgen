@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLocale } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
@@ -15,7 +15,7 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true)
   const locale = useLocale()
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
@@ -31,13 +31,20 @@ export function useAuth() {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-
-      if (user) {
-        await fetchProfile(user.id)
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (!sessionError) {
+        setUser(sessionData.session?.user ?? null)
       }
 
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (!userError) {
+        setUser(userData.user ?? null)
+      }
+
+      const finalUser = userData?.user ?? sessionData?.session?.user ?? null
+      if (finalUser) {
+        await fetchProfile(finalUser.id)
+      }
       setIsLoading(false)
     }
 

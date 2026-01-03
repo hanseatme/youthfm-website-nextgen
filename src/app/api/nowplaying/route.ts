@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAppSettings, getSettingNumber, getSettingString } from '@/lib/supabase/settings'
+import { createServiceClient } from '@/lib/supabase/server'
 
 // GET now playing data from external API
 export async function GET() {
@@ -40,12 +41,17 @@ export async function GET() {
       show: null as string | null,
       station: 'Next Generation Radio',
       category: null as string | null,
+      track_id: null as number | null,
+      preview_url: null as string | null,
       moderator: null as { name: string; avatar: string | null; isLive: boolean } | null,
     }
 
     if (data?.now_playing) {
       const category = data.now_playing.song?.custom_fields?.category || data.now_playing.song?.category
       const isMusic = category === 'music'
+      const trackIdRaw = data.now_playing.song?.custom_fields?.track_id ?? data.now_playing.song?.track_id
+      const trackId = typeof trackIdRaw === 'number' ? trackIdRaw : (typeof trackIdRaw === 'string' ? Number(trackIdRaw) : null)
+      const previewUrl = data.now_playing.song?.custom_fields?.preview_url || data.now_playing.song?.preview_url || null
 
       payload = {
         ...payload,
@@ -60,6 +66,8 @@ export async function GET() {
         show: data.now_playing.show?.name || null,
         station: data.station?.name || payload.station,
         category: category || null,
+        track_id: Number.isFinite(trackId as number) ? (trackId as number) : null,
+        preview_url: typeof previewUrl === 'string' ? previewUrl : null,
         moderator: data.live
           ? {
               name: data.live.streamer_name || 'DJ',
@@ -75,6 +83,8 @@ export async function GET() {
     } else if (data?.title) {
       const category = data.custom_fields?.category || data.category
       const isMusic = category === 'music'
+      const trackId = typeof data.track_id === 'number' ? data.track_id : (typeof data.track_id === 'string' ? Number(data.track_id) : null)
+      const previewUrl = data.preview_url || null
 
       payload = {
         ...payload,
@@ -89,6 +99,28 @@ export async function GET() {
         show: data.show || null,
         station: data.station || payload.station,
         category: category || null,
+        track_id: Number.isFinite(trackId as number) ? (trackId as number) : null,
+        preview_url: typeof previewUrl === 'string' ? previewUrl : null,
+      }
+    }
+
+    if (payload.category === 'music' && payload.track_id) {
+      try {
+        const supabase = await createServiceClient()
+        await supabase
+          .from('songs')
+          .upsert({
+            track_id: payload.track_id,
+            external_id: String(payload.track_id),
+            title: payload.title,
+            artist: payload.artist || null,
+            artwork_url: payload.artwork || null,
+            duration_seconds: payload.duration ? Math.round(payload.duration) : null,
+            preview_url: payload.preview_url || `/api/preview/${payload.track_id}`,
+            is_active: true,
+          } as never, { onConflict: 'track_id' })
+      } catch (error) {
+        console.warn('Failed to upsert now playing song:', error)
       }
     }
 

@@ -116,11 +116,13 @@ export interface Database {
         Row: {
           id: string
           external_id: string | null
+          track_id: number | null
           title: string
           artist: string | null
           artwork_url: string | null
           duration_seconds: number | null
           play_count: number
+          preview_url: string | null
           avg_energy: number | null
           dominant_mood: string | null
           community_score: number | null
@@ -130,11 +132,13 @@ export interface Database {
         Insert: {
           id?: string
           external_id?: string | null
+          track_id?: number | null
           title: string
           artist?: string | null
           artwork_url?: string | null
           duration_seconds?: number | null
           play_count?: number
+          preview_url?: string | null
           avg_energy?: number | null
           dominant_mood?: string | null
           community_score?: number | null
@@ -144,11 +148,13 @@ export interface Database {
         Update: {
           id?: string
           external_id?: string | null
+          track_id?: number | null
           title?: string
           artist?: string | null
           artwork_url?: string | null
           duration_seconds?: number | null
           play_count?: number
+          preview_url?: string | null
           avg_energy?: number | null
           dominant_mood?: string | null
           community_score?: number | null
@@ -796,11 +802,40 @@ export interface Database {
           updated_at?: string
         }
       }
+      private_settings: {
+        Row: {
+          key: string
+          value: Json
+          description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          value: Json
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          value?: Json
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      increment_song_preview_play: {
+        Args: {
+          p_song_id: string
+        }
+        Returns: undefined
+      }
       add_vibes: {
         Args: {
           p_user_id: string
@@ -811,12 +846,36 @@ export interface Database {
         }
         Returns: number
       }
+      award_badge: {
+        Args: {
+          p_user_id: string
+          p_badge_slug: string
+        }
+        Returns: boolean
+      }
       cast_duel_vote: {
         Args: {
           p_duel_id: string
           p_vote: DuelVote
         }
         Returns: number
+      }
+      get_top_songs: {
+        Args: {
+          p_limit?: number
+        }
+        Returns: Array<{
+          song_id: string
+          title: string
+          artist: string | null
+          artwork_url: string | null
+          track_id: number | null
+          preview_url: string | null
+          external_id: string | null
+          total_feedback: number
+          avg_reaction: number | null
+          top_reaction: number | null
+        }>
       }
       spend_vibes: {
         Args: {
@@ -827,6 +886,13 @@ export interface Database {
           p_reference_id?: string
         }
         Returns: boolean
+      }
+      update_user_streak: {
+        Args: {
+          p_user_id: string
+          p_minutes_listened: number
+        }
+        Returns: undefined
       }
     }
     Enums: {

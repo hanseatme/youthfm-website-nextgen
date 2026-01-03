@@ -21,11 +21,15 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [streamserverApiKey, setStreamserverApiKey] = useState('')
+  const [loadingSecrets, setLoadingSecrets] = useState(false)
+  const [savingSecrets, setSavingSecrets] = useState(false)
 
   const supabase = createClient()
 
   useEffect(() => {
     fetchSettings()
+    fetchSecrets()
   }, [])
 
   const fetchSettings = async () => {
@@ -45,6 +49,44 @@ export default function AdminSettingsPage() {
       setSettings(settingsMap)
     }
     setLoading(false)
+  }
+
+  const fetchSecrets = async () => {
+    setLoadingSecrets(true)
+    try {
+      const response = await fetch('/api/admin/private-settings?keys=streamserver_api_key')
+      if (!response.ok) return
+      const data = await response.json()
+      const value = data?.settings?.streamserver_api_key
+      setStreamserverApiKey(typeof value === 'string' ? value : '')
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoadingSecrets(false)
+    }
+  }
+
+  const saveStreamserverApiKey = async () => {
+    setSavingSecrets(true)
+    try {
+      const response = await fetch('/api/admin/private-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'streamserver_api_key', value: streamserverApiKey }),
+      })
+
+      if (!response.ok) {
+        toast.error('Fehler beim Speichern des API Keys')
+        return
+      }
+
+      toast.success('API Key gespeichert')
+    } catch (error) {
+      console.error(error)
+      toast.error('Fehler beim Speichern des API Keys')
+    } finally {
+      setSavingSecrets(false)
+    }
   }
 
   const updateSetting = async (key: string, value: unknown) => {
@@ -156,6 +198,46 @@ export default function AdminSettingsPage() {
                 variant="outline"
                 onClick={() => handleInputSave('now_playing_api')}
                 disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="streamserver_base_url">Streamserver Base URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="streamserver_base_url"
+                value={(settings.streamserver_base_url as string) || ''}
+                onChange={(e) => handleInputChange('streamserver_base_url', e.target.value)}
+                placeholder="https://yfm.hanseat.me"
+              />
+              <Button
+                variant="outline"
+                onClick={() => handleInputSave('streamserver_base_url')}
+                disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="streamserver_api_key">Streamserver API Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="streamserver_api_key"
+                value={streamserverApiKey}
+                onChange={(e) => setStreamserverApiKey(e.target.value)}
+                placeholder="X-API-Key ..."
+                type="password"
+                disabled={loadingSecrets}
+              />
+              <Button
+                variant="outline"
+                onClick={saveStreamserverApiKey}
+                disabled={savingSecrets || loadingSecrets}
               >
                 <Save className="h-4 w-4" />
               </Button>

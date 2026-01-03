@@ -22,8 +22,8 @@ export async function middleware(request: NextRequest) {
   const intlResponse = intlMiddleware(request)
 
   // Merge cookies from Supabase response
-  supabaseResponse.cookies.getAll().forEach(cookie => {
-    intlResponse.cookies.set(cookie.name, cookie.value, cookie)
+  supabaseResponse.cookies.getAll().forEach(({ name, value, ...options }) => {
+    intlResponse.cookies.set(name, value, options)
   })
 
   return intlResponse

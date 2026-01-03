@@ -244,6 +244,8 @@ export function HeroPlayer({ showMoodFeedback = true }: HeroPlayerProps) {
               <MoodFeedback
                 compact
                 embedded
+                songTrackId={nowPlaying.track_id ?? null}
+                songPreviewUrl={nowPlaying.preview_url ?? null}
                 songTitle={nowPlaying.title}
                 songArtist={nowPlaying.artist}
                 songArtwork={nowPlaying.artwork ?? null}

@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Play, Pause, Trophy, Clock, Swords } from 'lucide-react'
+import { Plus, Play, Pause, Trophy, Clock, Swords, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -53,6 +53,7 @@ export default function AdminDuelsPage() {
   const [songs, setSongs] = useState<Song[]>([])
   const [loading, setLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(false)
+  const [syncingSongs, setSyncingSongs] = useState(false)
   const [selectedSongA, setSelectedSongA] = useState<string>('')
   const [selectedSongB, setSelectedSongB] = useState<string>('')
   const [duelType, setDuelType] = useState<string>('classic')
@@ -91,15 +92,35 @@ export default function AdminDuelsPage() {
   const fetchSongs = async () => {
     const { data, error } = await supabase
       .from('songs')
-      .select('id, title, artist, artwork_url')
+      .select('id, title, artist, artwork_url, track_id')
       .eq('is_active', true)
+      .not('track_id', 'is', null)
       .order('title')
-      .limit(100)
+      .limit(500)
 
     if (error) {
       console.error(error)
     } else {
       setSongs(data as Song[])
+    }
+  }
+
+  const syncSongsFromStreamserver = async () => {
+    setSyncingSongs(true)
+    try {
+      const response = await fetch('/api/admin/music/sync', { method: 'POST' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        toast.error(data?.error || 'Fehler beim Synchronisieren der Songs')
+        return
+      }
+      toast.success(`Songs synchronisiert: ${data?.synced ?? 0}`)
+      fetchSongs()
+    } catch (error) {
+      console.error(error)
+      toast.error('Fehler beim Synchronisieren der Songs')
+    } finally {
+      setSyncingSongs(false)
     }
   }
 
@@ -215,14 +236,19 @@ export default function AdminDuelsPage() {
             Erstelle und verwalte Song-Duelle
           </p>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Neues Duell
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={syncSongsFromStreamserver} disabled={syncingSongs}>
+            <RefreshCw className={syncingSongs ? 'mr-2 h-4 w-4 animate-spin' : 'mr-2 h-4 w-4'} />
+            Songs sync
+          </Button>
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Neues Duell
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Neues Duell erstellen</DialogTitle>
               <DialogDescription>
@@ -326,8 +352,9 @@ export default function AdminDuelsPage() {
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Active Duel */}

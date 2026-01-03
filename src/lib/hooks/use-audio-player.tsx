@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/hooks/use-auth'
 interface NowPlayingInfo {
   title: string
   artist: string
+  track_id?: number | null
+  preview_url?: string | null
   artwork?: string
   listeners?: number
   elapsed?: number
@@ -148,6 +150,8 @@ export function AudioPlayerProvider({ children }: AudioPlayerProviderProps) {
             setNowPlaying({
               title: data.title || 'Unknown',
               artist: data.artist || 'Unknown Artist',
+              track_id: typeof data.track_id === 'number' ? data.track_id : null,
+              preview_url: typeof data.preview_url === 'string' ? data.preview_url : null,
               artwork: data.artwork || data.artwork_url,
               listeners: data.listeners ?? undefined,
               elapsed: data.elapsed ?? undefined,

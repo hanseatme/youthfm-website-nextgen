@@ -19,8 +19,10 @@ export default async function HomePage({ params }: HomePageProps) {
     supabase
       .from('daily_themes')
       .select('title, title_en, teaser, teaser_en, image_url')
-      .eq('date', today)
-      .single(),
+      .lte('date', today)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     supabase
       .from('duels')
       .select(`
@@ -33,8 +35,8 @@ export default async function HomePage({ params }: HomePageProps) {
         prompt,
         option_a_text,
         option_b_text,
-        song_a:songs!duels_song_a_id_fkey(title, artist),
-        song_b:songs!duels_song_b_id_fkey(title, artist)
+        song_a:songs!duels_song_a_id_fkey(id, title, artist, track_id, preview_url, external_id),
+        song_b:songs!duels_song_b_id_fkey(id, title, artist, track_id, preview_url, external_id)
       `)
       .eq('status', 'active')
       .order('created_at', { ascending: false })

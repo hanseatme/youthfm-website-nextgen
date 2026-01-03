@@ -26,7 +26,9 @@
       "Bash(netstat:*)",
       "Bash(wmic process where \"name=''node.exe''\" delete)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: YouthFM Next Generation Radio - full app implementation\n\nComplete Next.js application with:\n- Radio player with mood feedback and now-playing integration\n- Daily themes with community questions\n- Song duels and voting system\n- User profiles with badges, streaks, and vibes currency\n- Community chat with real-time messaging\n- Leaderboards and shop system\n- Admin dashboard for themes, duels, and moderation\n- Supabase backend with migrations and RLS policies\n- i18n support for DE/EN\n- shadcn/ui components and Tailwind CSS styling\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)"
     ]
   }
 }

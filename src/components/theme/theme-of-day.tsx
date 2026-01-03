@@ -18,8 +18,8 @@ interface ThemeOfDayProps {
   isLoading?: boolean
   activeDuel?: {
     id: string
-    song_a: { title: string; artist: string } | null
-    song_b: { title: string; artist: string } | null
+    song_a: { id: string; title: string; artist: string; track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null
+    song_b: { id: string; title: string; artist: string; track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null
     prompt?: string | null
     option_a_text?: string | null
     option_b_text?: string | null
@@ -52,7 +52,14 @@ export function ThemeOfDay({ theme, isLoading, activeDuel }: ThemeOfDayProps) {
   }
 
   if (!theme) {
-    return null
+    return (
+      <div className="glass-card rounded-3xl overflow-hidden p-4 sm:p-6 space-y-6">
+        <HeroPlayer showMoodFeedback />
+        <div className="border-t border-border/40 pt-6">
+          <DuelPreview duel={activeDuel} layout="horizontal" />
+        </div>
+      </div>
+    )
   }
 
   return (

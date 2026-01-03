@@ -12,6 +12,8 @@ import { toast } from 'sonner'
 
 interface MoodFeedbackProps {
   songId?: string
+  songTrackId?: number | null
+  songPreviewUrl?: string | null
   songTitle?: string | null
   songArtist?: string | null
   songArtwork?: string | null
@@ -52,7 +54,7 @@ const activityOptions = [
   { value: 'sleep', emoji: '😴' },
 ]
 
-export function MoodFeedback({ songId, songTitle, songArtist, songArtwork, onFeedbackSubmit, compact = false, embedded = false }: MoodFeedbackProps) {
+export function MoodFeedback({ songId, songTrackId, songPreviewUrl, songTitle, songArtist, songArtwork, onFeedbackSubmit, compact = false, embedded = false }: MoodFeedbackProps) {
   const t = useTranslations('feedback')
   const { isAuthenticated } = useAuth()
   const [selectedReaction, setSelectedReaction] = useState<number | null>(null)
@@ -143,6 +145,8 @@ export function MoodFeedback({ songId, songTitle, songArtist, songArtwork, onFee
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           song_id: songId,
+          song_track_id: songTrackId,
+          song_preview_url: songPreviewUrl,
           song_title: songTitle,
           song_artist: songArtist,
           song_artwork: songArtwork,

@@ -1,7 +1,8 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { Timer, Swords } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Timer, Swords, Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Link } from '@/i18n/navigation'
@@ -9,8 +10,8 @@ import { Link } from '@/i18n/navigation'
 interface DuelPreviewProps {
   duel?: {
     id: string
-    song_a: { title: string; artist: string } | null
-    song_b: { title: string; artist: string } | null
+    song_a: { id: string; title: string; artist: string; track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null
+    song_b: { id: string; title: string; artist: string; track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null
     prompt?: string | null
     option_a_text?: string | null
     option_b_text?: string | null
@@ -26,6 +27,8 @@ interface DuelPreviewProps {
 
 export function DuelPreview({ duel, compact = false, layout = 'stacked' }: DuelPreviewProps) {
   const t = useTranslations('duel')
+  const [playingSongId, setPlayingSongId] = useState<string | null>(null)
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null)
 
   if (!duel) {
     return (
@@ -48,6 +51,68 @@ export function DuelPreview({ duel, compact = false, layout = 'stacked' }: DuelP
   const optionASubtitle = duel.option_a_text ? null : (duel.song_a?.artist || 'Unbekannt')
   const optionBSubtitle = duel.option_b_text ? null : (duel.song_b?.artist || 'Unbekannt')
   const subtitle = duel.prompt?.trim() || t('subtitle')
+
+  const getPreviewId = (song: { track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null) => {
+    if (!song) return null
+    if (typeof song.track_id === 'number' && Number.isFinite(song.track_id) && song.track_id > 0) return song.track_id
+    if (typeof song.preview_url === 'string') {
+      const match = song.preview_url.match(/\/api\/preview\/(\d+)/)
+      if (match) {
+        const parsed = Number(match[1])
+        if (Number.isFinite(parsed) && parsed > 0) return parsed
+      }
+    }
+    if (typeof song.external_id === 'string') {
+      const parsed = Number(song.external_id)
+      if (Number.isFinite(parsed) && parsed > 0) return parsed
+    }
+    return null
+  }
+
+  const previewIdA = getPreviewId(duel.song_a)
+  const previewIdB = getPreviewId(duel.song_b)
+
+  useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause()
+        previewAudioRef.current = null
+      }
+    }
+  }, [])
+
+  const togglePreview = async (song: { id: string } | null, previewId: number | null) => {
+    if (!song?.id || !previewId) return
+
+    if (!previewAudioRef.current) {
+      previewAudioRef.current = new Audio()
+      previewAudioRef.current.preload = 'none'
+      previewAudioRef.current.addEventListener('ended', () => setPlayingSongId(null))
+      previewAudioRef.current.addEventListener('pause', () => setPlayingSongId(null))
+    }
+
+    if (playingSongId === song.id) {
+      previewAudioRef.current.pause()
+      setPlayingSongId(null)
+      return
+    }
+
+    try {
+      previewAudioRef.current.pause()
+      previewAudioRef.current.currentTime = 0
+      previewAudioRef.current.src = `/api/preview/${previewId}`
+      await previewAudioRef.current.play()
+      setPlayingSongId(song.id)
+      fetch('/api/songs/preview-play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song_id: song.id }),
+      }).catch(() => {})
+    } catch (error) {
+      console.error('Preview playback error:', error)
+      setPlayingSongId(null)
+    }
+  }
 
   return (
     <div className={compact ? 'space-y-3' : 'space-y-4'}>
@@ -77,13 +142,32 @@ export function DuelPreview({ duel, compact = false, layout = 'stacked' }: DuelP
           {/* Song A */}
           <div className="space-y-2">
             <div className="flex justify-between items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate text-sm">{optionATitle}</p>
-                {optionASubtitle && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {optionASubtitle}
-                  </p>
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                {previewIdA && duel.song_a && (
+                  <button
+                    type="button"
+                    onClick={() => togglePreview(duel.song_a, previewIdA)}
+                    className={[
+                      'shrink-0 h-16 w-16 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-fuchsia-500 text-white shadow-lg shadow-primary/30 border border-white/10 hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.03] transition-all',
+                      playingSongId === duel.song_a.id ? 'ring-2 ring-primary/40 shadow-primary/50' : '',
+                    ].join(' ')}
+                    aria-label={playingSongId === duel.song_a.id ? 'Pause preview' : 'Play preview'}
+                  >
+                    {playingSongId === duel.song_a.id ? (
+                      <Pause className="h-8 w-8 mx-auto" />
+                    ) : (
+                      <Play className="h-8 w-8 mx-auto translate-x-[1px]" />
+                    )}
+                  </button>
                 )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate text-sm">{optionATitle}</p>
+                  {optionASubtitle && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {optionASubtitle}
+                    </p>
+                  )}
+                </div>
               </div>
               <span className="text-lg font-bold tabular-nums shrink-0">
                 {percentA.toFixed(0)}%
@@ -99,13 +183,32 @@ export function DuelPreview({ duel, compact = false, layout = 'stacked' }: DuelP
           {/* Song B */}
           <div className="space-y-2">
             <div className="flex justify-between items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate text-sm">{optionBTitle}</p>
-                {optionBSubtitle && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {optionBSubtitle}
-                  </p>
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                {previewIdB && duel.song_b && (
+                  <button
+                    type="button"
+                    onClick={() => togglePreview(duel.song_b, previewIdB)}
+                    className={[
+                      'shrink-0 h-16 w-16 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-fuchsia-500 text-white shadow-lg shadow-primary/30 border border-white/10 hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.03] transition-all',
+                      playingSongId === duel.song_b.id ? 'ring-2 ring-primary/40 shadow-primary/50' : '',
+                    ].join(' ')}
+                    aria-label={playingSongId === duel.song_b.id ? 'Pause preview' : 'Play preview'}
+                  >
+                    {playingSongId === duel.song_b.id ? (
+                      <Pause className="h-8 w-8 mx-auto" />
+                    ) : (
+                      <Play className="h-8 w-8 mx-auto translate-x-[1px]" />
+                    )}
+                  </button>
                 )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate text-sm">{optionBTitle}</p>
+                  {optionBSubtitle && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {optionBSubtitle}
+                    </p>
+                  )}
+                </div>
               </div>
               <span className="text-lg font-bold tabular-nums shrink-0">
                 {percentB.toFixed(0)}%
@@ -119,15 +222,33 @@ export function DuelPreview({ duel, compact = false, layout = 'stacked' }: DuelP
           {/* Song A */}
           <div className="space-y-2">
             <div className="flex justify-between items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <p className={compact ? 'font-medium truncate text-xs' : 'font-medium truncate text-sm'}>
-                  {optionATitle}
-                </p>
-                {optionASubtitle && (
-                  <p className={compact ? 'text-[10px] text-muted-foreground truncate' : 'text-xs text-muted-foreground truncate'}>
-                    {optionASubtitle}
-                  </p>
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                {previewIdA && duel.song_a && (
+                  <button
+                    type="button"
+                    onClick={() => togglePreview(duel.song_a, previewIdA)}
+                    className={compact
+                      ? 'shrink-0 h-12 w-12 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-fuchsia-500 text-white shadow-lg shadow-primary/30 border border-white/10 hover:shadow-xl hover:shadow-primary/40 transition-all'
+                      : 'shrink-0 h-14 w-14 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-fuchsia-500 text-white shadow-lg shadow-primary/30 border border-white/10 hover:shadow-xl hover:shadow-primary/40 transition-all'}
+                    aria-label={playingSongId === duel.song_a.id ? 'Pause preview' : 'Play preview'}
+                  >
+                    {playingSongId === duel.song_a.id ? (
+                      <Pause className={compact ? 'h-6 w-6 mx-auto' : 'h-7 w-7 mx-auto'} />
+                    ) : (
+                      <Play className={compact ? 'h-6 w-6 mx-auto translate-x-[1px]' : 'h-7 w-7 mx-auto translate-x-[1px]'} />
+                    )}
+                  </button>
                 )}
+                <div className="min-w-0 flex-1">
+                  <p className={compact ? 'font-medium truncate text-xs' : 'font-medium truncate text-sm'}>
+                    {optionATitle}
+                  </p>
+                  {optionASubtitle && (
+                    <p className={compact ? 'text-[10px] text-muted-foreground truncate' : 'text-xs text-muted-foreground truncate'}>
+                      {optionASubtitle}
+                    </p>
+                  )}
+                </div>
               </div>
               <span className={compact ? 'text-base font-bold tabular-nums shrink-0' : 'text-lg font-bold tabular-nums shrink-0'}>
                 {percentA.toFixed(0)}%
@@ -149,15 +270,33 @@ export function DuelPreview({ duel, compact = false, layout = 'stacked' }: DuelP
           {/* Song B */}
           <div className="space-y-2">
             <div className="flex justify-between items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <p className={compact ? 'font-medium truncate text-xs' : 'font-medium truncate text-sm'}>
-                  {optionBTitle}
-                </p>
-                {optionBSubtitle && (
-                  <p className={compact ? 'text-[10px] text-muted-foreground truncate' : 'text-xs text-muted-foreground truncate'}>
-                    {optionBSubtitle}
-                  </p>
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                {previewIdB && duel.song_b && (
+                  <button
+                    type="button"
+                    onClick={() => togglePreview(duel.song_b, previewIdB)}
+                    className={compact
+                      ? 'shrink-0 h-12 w-12 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-fuchsia-500 text-white shadow-lg shadow-primary/30 border border-white/10 hover:shadow-xl hover:shadow-primary/40 transition-all'
+                      : 'shrink-0 h-14 w-14 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-fuchsia-500 text-white shadow-lg shadow-primary/30 border border-white/10 hover:shadow-xl hover:shadow-primary/40 transition-all'}
+                    aria-label={playingSongId === duel.song_b.id ? 'Pause preview' : 'Play preview'}
+                  >
+                    {playingSongId === duel.song_b.id ? (
+                      <Pause className={compact ? 'h-6 w-6 mx-auto' : 'h-7 w-7 mx-auto'} />
+                    ) : (
+                      <Play className={compact ? 'h-6 w-6 mx-auto translate-x-[1px]' : 'h-7 w-7 mx-auto translate-x-[1px]'} />
+                    )}
+                  </button>
                 )}
+                <div className="min-w-0 flex-1">
+                  <p className={compact ? 'font-medium truncate text-xs' : 'font-medium truncate text-sm'}>
+                    {optionBTitle}
+                  </p>
+                  {optionBSubtitle && (
+                    <p className={compact ? 'text-[10px] text-muted-foreground truncate' : 'text-xs text-muted-foreground truncate'}>
+                      {optionBSubtitle}
+                    </p>
+                  )}
+                </div>
               </div>
               <span className={compact ? 'text-base font-bold tabular-nums shrink-0' : 'text-lg font-bold tabular-nums shrink-0'}>
                 {percentB.toFixed(0)}%

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Swords, ArrowLeft, Sparkles, Music } from 'lucide-react'
+import { Swords, ArrowLeft, Sparkles, Music, Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
@@ -28,12 +28,18 @@ interface DuelVotingProps {
       title: string
       artist: string
       artwork_url?: string | null
+      track_id?: number | null
+      preview_url?: string | null
+      external_id?: string | null
     } | null
     song_b: {
       id: string
       title: string
       artist: string
       artwork_url?: string | null
+      track_id?: number | null
+      preview_url?: string | null
+      external_id?: string | null
     } | null
   }
   hasVoted: boolean
@@ -49,6 +55,8 @@ export function DuelVoting({ duel, hasVoted: initialHasVoted, userVote: initialU
   const [userVote, setUserVote] = useState<'a' | 'b' | null>(initialUserVote)
   const [votes, setVotes] = useState({ a: duel.votes_a, b: duel.votes_b })
   const [vibesEarned, setVibesEarned] = useState<number | null>(null)
+  const [playingSongId, setPlayingSongId] = useState<string | null>(null)
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const totalVotes = votes.a + votes.b
   const percentA = totalVotes > 0 ? (votes.a / totalVotes) * 100 : 50
@@ -58,6 +66,68 @@ export function DuelVoting({ duel, hasVoted: initialHasVoted, userVote: initialU
   const optionBTitle = duel.option_b_text?.trim() || duel.song_b?.title || 'Option B'
   const optionASubtitle = duel.option_a_text ? null : (duel.song_a?.artist || 'Unknown')
   const optionBSubtitle = duel.option_b_text ? null : (duel.song_b?.artist || 'Unknown')
+
+  const getPreviewId = (song: { track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null) => {
+    if (!song) return null
+    if (typeof song.track_id === 'number' && Number.isFinite(song.track_id) && song.track_id > 0) return song.track_id
+    if (typeof song.preview_url === 'string') {
+      const match = song.preview_url.match(/\/api\/preview\/(\d+)/)
+      if (match) {
+        const parsed = Number(match[1])
+        if (Number.isFinite(parsed) && parsed > 0) return parsed
+      }
+    }
+    if (typeof song.external_id === 'string') {
+      const parsed = Number(song.external_id)
+      if (Number.isFinite(parsed) && parsed > 0) return parsed
+    }
+    return null
+  }
+
+  useEffect(() => {
+    return () => {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause()
+        previewAudioRef.current = null
+      }
+    }
+  }, [])
+
+  const togglePreview = async (song: { id: string; track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null) => {
+    if (!song?.id) return
+    const previewId = getPreviewId(song)
+    if (!previewId) return
+
+    if (!previewAudioRef.current) {
+      previewAudioRef.current = new Audio()
+      previewAudioRef.current.preload = 'none'
+      previewAudioRef.current.addEventListener('ended', () => setPlayingSongId(null))
+      previewAudioRef.current.addEventListener('pause', () => setPlayingSongId(null))
+    }
+
+    if (playingSongId === song.id) {
+      previewAudioRef.current.pause()
+      setPlayingSongId(null)
+      return
+    }
+
+    try {
+      previewAudioRef.current.pause()
+      previewAudioRef.current.currentTime = 0
+      previewAudioRef.current.src = `/api/preview/${previewId}`
+      await previewAudioRef.current.play()
+      setPlayingSongId(song.id)
+      fetch('/api/songs/preview-play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song_id: song.id }),
+      }).catch(() => {})
+    } catch (error) {
+      console.error('Preview playback error:', error)
+      toast.error(locale === 'de' ? 'Hörprobe konnte nicht abgespielt werden' : 'Failed to play preview')
+      setPlayingSongId(null)
+    }
+  }
 
   const handleVote = async (choice: 'a' | 'b') => {
     if (!isAuthenticated) {
@@ -176,7 +246,7 @@ export function DuelVoting({ duel, hasVoted: initialHasVoted, userVote: initialU
           )}
         >
           {!isTextDuel && (
-            <div className="aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 mb-4">
+            <div className="relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 mb-4">
               {duel.song_a?.artwork_url ? (
                 <img
                   src={duel.song_a.artwork_url}
@@ -187,6 +257,24 @@ export function DuelVoting({ duel, hasVoted: initialHasVoted, userVote: initialU
                 <div className="flex items-center justify-center h-full">
                   <Music className="w-16 h-16 text-primary/60" />
                 </div>
+              )}
+              {getPreviewId(duel.song_a) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    togglePreview(duel.song_a)
+                  }}
+                  className="absolute bottom-3 right-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-background/80 backdrop-blur border border-border/60 text-foreground hover:bg-background transition-colors"
+                  aria-label={playingSongId === duel.song_a?.id ? 'Pause preview' : 'Play preview'}
+                >
+                  {playingSongId === duel.song_a?.id ? (
+                    <Pause className="h-5 w-5" />
+                  ) : (
+                    <Play className="h-5 w-5" />
+                  )}
+                </button>
               )}
             </div>
           )}
@@ -226,7 +314,7 @@ export function DuelVoting({ duel, hasVoted: initialHasVoted, userVote: initialU
           )}
         >
           {!isTextDuel && (
-            <div className="aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 mb-4">
+            <div className="relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 mb-4">
               {duel.song_b?.artwork_url ? (
                 <img
                   src={duel.song_b.artwork_url}
@@ -237,6 +325,24 @@ export function DuelVoting({ duel, hasVoted: initialHasVoted, userVote: initialU
                 <div className="flex items-center justify-center h-full">
                   <Music className="w-16 h-16 text-primary/60" />
                 </div>
+              )}
+              {getPreviewId(duel.song_b) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    togglePreview(duel.song_b)
+                  }}
+                  className="absolute bottom-3 right-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-background/80 backdrop-blur border border-border/60 text-foreground hover:bg-background transition-colors"
+                  aria-label={playingSongId === duel.song_b?.id ? 'Pause preview' : 'Play preview'}
+                >
+                  {playingSongId === duel.song_b?.id ? (
+                    <Pause className="h-5 w-5" />
+                  ) : (
+                    <Play className="h-5 w-5" />
+                  )}
+                </button>
               )}
             </div>
           )}
