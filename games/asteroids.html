@@ -1125,7 +1125,11 @@
                          next.score = Number(raw.score) || 0;
                          next.color = raw.color || '#94a3b8';
                          next.display_name = raw.display_name || null;
-                         next.isDead = Boolean(raw.isDead);
+                         const nextDead = Boolean(raw.isDead);
+                         if (!next.isDead && nextDead) {
+                             next.trail = [];
+                         }
+                         next.isDead = nextDead;
                          next.isInvincible = Boolean(raw.isInvincible);
                          this.mpPlayers.set(id, next);
                      }
@@ -1165,11 +1169,23 @@
                  }
 
                  const remoteAlpha = Math.min(1, dt * 12);
-                 const localAlpha = Math.min(1, dt * 6);
+                 const localAlphaY = Math.min(1, dt * 6);
                  for (const [id, p] of this.mpPlayers.entries()) {
-                     const alpha = id === localId ? localAlpha : remoteAlpha;
-                     if (typeof p.targetX === 'number') p.x += (p.targetX - p.x) * alpha;
-                     if (typeof p.targetY === 'number') p.y += (p.targetY - p.y) * alpha;
+                     if (typeof p.targetX === 'number') {
+                         if (id === localId) {
+                             const err = p.targetX - p.x;
+                             // Keep local controls primary; only correct if we drift too far.
+                             if (Math.abs(err) > 36) {
+                                 p.x += err * Math.min(1, dt * 4);
+                             }
+                         } else {
+                             p.x += (p.targetX - p.x) * remoteAlpha;
+                         }
+                     }
+                     if (typeof p.targetY === 'number') {
+                         const alphaY = id === localId ? localAlphaY : remoteAlpha;
+                         p.y += (p.targetY - p.y) * alphaY;
+                     }
                  }
 
                  // Lightweight local animation only (authoritative state still comes from the host snapshot).
@@ -1199,6 +1215,15 @@
                      p.y += p.vy * dt;
                      p.life -= dt * 2;
                      if (p.life <= 0) this.particles.splice(i, 1);
+                 }
+
+                 // Trails (prevent "stuck thruster line" on clients)
+                 for (const p of this.mpPlayers.values()) {
+                     for (let i = (p.trail || []).length - 1; i >= 0; i--) {
+                         p.trail[i].life -= dt * 5;
+                         p.trail[i].y += currentScrollSpeed * dt;
+                         if (p.trail[i].life <= 0) p.trail.splice(i, 1);
+                     }
                  }
              }
 
@@ -1736,17 +1761,18 @@
                     ctx.restore();
                 });
 
-                // Trail
-                if (network.role === 'host' || network.role === 'client') {
-                    for (const p of this.mpPlayers.values()) {
-                        (p.trail || []).forEach(t => {
-                            ctx.fillStyle = p.isInvincible ? `rgba(255, 255, 0, ${t.life * 0.8})` : `rgba(0, 255, 255, ${t.life * 0.5})`;
-                            ctx.beginPath();
-                            ctx.arc(t.x, t.y, CONFIG.playerSize/2 * t.life, 0, Math.PI * 2);
-                            ctx.fill();
-                        });
-                    }
-                } else {
+                 // Trail
+                 if (network.role === 'host' || network.role === 'client') {
+                     for (const p of this.mpPlayers.values()) {
+                         if (p.isDead) continue;
+                         (p.trail || []).forEach(t => {
+                             ctx.fillStyle = p.isInvincible ? `rgba(255, 255, 0, ${t.life * 0.8})` : `rgba(0, 255, 255, ${t.life * 0.5})`;
+                             ctx.beginPath();
+                             ctx.arc(t.x, t.y, CONFIG.playerSize/2 * t.life, 0, Math.PI * 2);
+                             ctx.fill();
+                         });
+                     }
+                 } else {
                     this.player.trail.forEach(t => {
                         ctx.fillStyle = this.isInvincible ? `rgba(255, 255, 0, ${t.life * 0.8})` : `rgba(0, 255, 255, ${t.life * 0.5})`;
                         ctx.beginPath();
