@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Youth FM - Asteroids</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            background-color: #050505;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #gameCanvas {
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.1);
+        }
+
+        .neon-text {
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.7), 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .ui-panel {
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .btn-neon {
+            background: transparent;
+            border: 2px solid #0ff;
+            color: #0ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+            cursor: pointer;
+        }
+
+        .btn-neon:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+        }
+
+        /* Mobile Controls Container */
+        #mobile-controls {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        /* Embedded mode tweaks */
+        body.embedded #main-menu {
+            max-width: 28rem;
+        }
+
+        /* Fixed square viewport (scaled) */
+        #game-root {
+            position: relative;
+            width: 720px;
+            height: 720px;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Joystick Styles */
+        #joystick-zone {
+            position: absolute;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+            left: calc(env(safe-area-inset-left, 0px) + 16px);
+            width: 104px;
+            height: 104px;
+            pointer-events: auto; /* Zone muss klickbar sein */
+        }
+
+        #joystick-base {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            background: rgba(0, 255, 255, 0.05);
+            position: relative;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.1);
+        }
+
+        #joystick-stick {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 255, 255, 0.5);
+            border: 2px solid #0ff;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            transition: transform 0.1s; /* Smooth return to center */
+        }
+        
+        /* Aktiver Zustand (beim Draggen) entfernen wir die Transition für direkte Reaktion */
+        #joystick-stick.active {
+            transition: none;
+            background: rgba(0, 255, 255, 0.8);
+        }
+
+        /* Feuer Button */
+        .fire-btn {
+            position: absolute;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+            right: calc(env(safe-area-inset-right, 0px) + 16px);
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            border: 3px solid #ff0055;
+            background: rgba(255, 0, 85, 0.2);
+            color: #ff0055;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
+            user-select: none;
+            pointer-events: auto;
+            transition: transform 0.1s, background 0.1s;
+        }
+        .fire-btn:active {
+            transform: scale(0.90);
+            background: rgba(255, 0, 85, 0.5);
+            box-shadow: 0 0 25px rgba(255, 0, 85, 0.8);
+        }
+
+        @media (max-width: 420px) {
+            #joystick-zone {
+                width: 92px;
+                height: 92px;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+                left: calc(env(safe-area-inset-left, 0px) + 12px);
+            }
+            #joystick-stick {
+                width: 44px;
+                height: 44px;
+            }
+            .fire-btn {
+                width: 72px;
+                height: 72px;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+                right: calc(env(safe-area-inset-right, 0px) + 12px);
+                border-width: 2px;
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen w-screen bg-black">
+    <div id="game-root">
+        <!-- UI Overlay -->
+        <div id="ui-layer" class="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10">
+        
+        <!-- Main Menu -->
+        <div id="main-menu" class="ui-panel p-5 sm:p-8 rounded-xl text-center pointer-events-auto max-w-md w-full max-h-[70vh] overflow-y-auto">
+            <h1 class="text-3xl sm:text-4xl mb-2 font-bold neon-text text-cyan-400">NEON AUFSTIEG</h1>
+            <p class="text-gray-400 mb-6 sm:mb-8 text-sm">Weiche aus. Schieße (Leertaste). Sammle Power-Ups.</p>
+            
+            <div class="space-y-4">
+                <button id="btn-single" class="btn-neon w-full py-3 rounded font-bold">Start</button>
+                <button id="btn-multi-sim" class="btn-neon w-full py-3 rounded font-bold border-fuchsia-500 text-fuchsia-500 hover:bg-fuchsia-500 hover:text-black hover:shadow-fuchsia-500/50">Multiplayer (im Community-Cockpit)</button>
+            </div>
+
+            <div class="mt-5 text-xs text-gray-500 border-t border-gray-800 pt-4">
+                PC: Pfeiltasten & Leertaste<br>
+                Mobile: Joystick Links & Feuer Rechts
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over" class="hidden ui-panel p-8 rounded-xl text-center pointer-events-auto">
+            <h2 class="text-3xl mb-4 font-bold text-red-500 neon-text">CRASHED</h2>
+            <p class="text-xl mb-6">Score: <span id="final-score" class="text-white">0</span></p>
+            <button id="btn-restart" class="btn-neon px-8 py-2 rounded">Nochmal</button>
+        </div>
+
+        <!-- Multiplayer Round Control Overlay (in-game) -->
+        <div id="mp-round" class="hidden ui-panel p-6 rounded-xl text-center pointer-events-auto max-w-md w-full">
+            <h2 id="mp-title" class="text-2xl mb-2 font-bold neon-text text-cyan-400">MULTI</h2>
+            <p id="mp-subtitle" class="text-gray-300 mb-5 text-sm"></p>
+            <div id="mp-actions" class="space-y-3"></div>
+            <div id="mp-hint" class="mt-4 text-xs text-gray-500"></div>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud" class="hidden absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none">
+            <div class="text-left">
+                <div class="text-xs text-gray-400">SCORE</div>
+                <div id="score-display" class="text-2xl font-bold text-cyan-400">0</div>
+            </div>
+            
+            <!-- Powerup Status -->
+            <div id="powerup-status" class="hidden absolute top-16 left-1/2 transform -translate-x-1/2 text-center">
+                <div class="text-yellow-400 font-bold text-xl neon-text">NITRO BOOST!</div>
+            </div>
+
+            <div class="text-right">
+                <div class="text-xs text-gray-400">STATUS</div>
+                <div id="connection-status" class="text-xs font-bold text-green-500">OFFLINE</div>
+            </div>
+        </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <!-- Mobile Controls (Joystick & Button) -->
+    <div id="mobile-controls" class="hidden">
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-stick"></div>
+            </div>
+        </div>
+        <div id="btn-fire" class="fire-btn">FEUER</div>
+    </div>
+
+    <script>
+        /**
+         * KONFIGURATION & SETUP
+         */
+        const VIEWPORT_SIZE = 720;
+
+        const root = document.getElementById('game-root');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const uiMainMenu = document.getElementById('main-menu');
+        const uiGameOver = document.getElementById('game-over');
+         const uiMultiplayerRound = document.getElementById('mp-round');
+         const uiMultiplayerTitle = document.getElementById('mp-title');
+         const uiMultiplayerSubtitle = document.getElementById('mp-subtitle');
+         const uiMultiplayerActions = document.getElementById('mp-actions');
+         const uiMultiplayerHint = document.getElementById('mp-hint');
+        const uiHud = document.getElementById('hud');
+        const scoreDisplay = document.getElementById('score-display');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const statusDisplay = document.getElementById('connection-status');
+        const mobileControls = document.getElementById('mobile-controls');
+        const powerupStatus = document.getElementById('powerup-status');
+        
+        // Joystick Elements
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickStick = document.getElementById('joystick-stick');
+        const btnFire = document.getElementById('btn-fire');
+
+        let animationId;
+        let lastTime = 0;
+
+        // Spielstatus
+        const STATE = {
+            menu: 'menu',
+            playing: 'playing',
+            gameover: 'gameover'
+        };
+        let currentState = STATE.menu;
+
+        // Physik & Welt Konstanten
+        const CONFIG = {
+            playerSpeed: 400,
+            scrollSpeedBase: 90,
+            scrollSpeedMax: 520,
+            obstacleGapHeight: 220, 
+            gapWidth: 130,
+            playerSize: 20,
+            bulletSpeed: 800,
+            asteroidSpeedAdd: 35,
+            spawnRates: {
+                asteroid: 0.010,
+                powerup: 0.0025
+            }
+        };
+
+         const LEVEL_SEGMENTS = 48;
+         const WARMUP_SEGMENTS = 2;
+
+        /**
+         * EMBED / PARENT BRIDGE
+         * Supabase-Online-Logik läuft im Parent (Community Tab) und synct hier nur die Anzeige.
+         */
+        const EMBEDDED = window.parent && window.parent !== window;
+        const POST_SOURCE = "yfm-asteroids";
+        const PARENT_SOURCE = "yfm-community";
+
+         if (EMBEDDED) {
+             document.body.classList.add('embedded');
+         }
+
+        function postToParent(payload) {
+            if (!EMBEDDED) return;
+            try {
+                window.parent.postMessage({ source: POST_SOURCE, ...payload }, window.location.origin);
+            } catch {
+                // ignore
+            }
+        }
+
+        /**
+         * NETZWERK (lokal/offline + multiplayer state via postMessage)
+         */
+         class NetworkManager {
+             constructor() {
+                 this.localPlayerId = 'local';
+                 this.otherPlayers = new Map();
+                 this.role = 'single'; // single | host | client
+                 this.roster = [];
+                 this.localMeta = { id: this.localPlayerId, display_name: null, color: '#00ffff' };
+                 this.lastPositionBroadcastAt = 0;
+             }
+
+            stopSimulation() {
+                this.otherPlayers.clear();
+                statusDisplay.innerText = "OFFLINE (SINGLE)";
+                statusDisplay.className = "text-xs font-bold text-green-500";
+            }
+
+            updatePlayer(id, data) {
+                if (id === this.localPlayerId) return;
+                this.otherPlayers.set(id, data);
+            }
+
+             broadcastPosition(x, y, isDead, score) {
+                 const now = performance.now();
+                 if (now - this.lastPositionBroadcastAt < 150) return;
+                 this.lastPositionBroadcastAt = now;
+                 postToParent({ type: "state", payload: { x, y, isDead, score } });
+             }
+
+            broadcastGameOver(score) {
+                postToParent({ type: "gameOver", payload: { score } });
+            }
+
+            broadcastInput(moveX) {
+                postToParent({ type: "input", payload: { moveX } });
+            }
+
+            broadcastShoot() {
+                postToParent({ type: "shoot", payload: {} });
+            }
+
+            broadcastWorld(world) {
+                postToParent({ type: "world", payload: world });
+            }
+
+            setLocalPlayer(meta) {
+                if (!meta) return;
+                if (typeof meta.playerId === "string") this.localPlayerId = meta.playerId;
+                if (typeof meta.role === "string") this.role = meta.role;
+                if (typeof meta.displayName === "string") this.localMeta.display_name = meta.displayName;
+                if (typeof meta.color === "string") this.localMeta.color = meta.color;
+                this.localMeta.id = this.localPlayerId;
+            }
+
+            setRoster(list) {
+                this.otherPlayers.clear();
+                this.roster = [];
+                if (!Array.isArray(list)) return;
+                for (const p of list) {
+                    if (!p || typeof p.id !== 'string') continue;
+                    if (p.id === this.localPlayerId) continue;
+                    const normalized = {
+                        id: p.id,
+                        display_name: p.display_name || null,
+                        color: p.color || '#94a3b8',
+                    };
+                    this.roster.push(normalized);
+                    this.otherPlayers.set(p.id, normalized);
+                }
+            }
+
+            getOthers() {
+                return this.otherPlayers;
+            }
+
+            getRoster() {
+                return [
+                    { id: this.localMeta.id, display_name: this.localMeta.display_name, color: this.localMeta.color },
+                    ...this.roster,
+                ].slice(0, 4);
+            }
+        }
+
+        const network = new NetworkManager();
+
+        function mulberry32(seed) {
+            let a = seed >>> 0;
+            return function() {
+                a |= 0;
+                a = (a + 0x6D2B79F5) | 0;
+                let t = Math.imul(a ^ (a >>> 15), 1 | a);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+
+        function hashStringToSeed(str) {
+            let h = 2166136261;
+            for (let i = 0; i < str.length; i++) {
+                h ^= str.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return h >>> 0;
+        }
+
+         function clamp01(x) {
+             if (x < -1) return -1;
+             if (x > 1) return 1;
+             return x;
+         }
+
+         /**
+          * MULTIPLAYER ROOM UI (inside the game)
+          * The parent (Community Cockpit) owns Supabase RPCs and pushes roomState to the iframe.
+          */
+         let roomState = null; // { room: {...}, isHost, player_count, can_start, vote, now }
+         let localPendingVoteChoice = null; // boolean | null
+         let localPendingVoteAt = 0;
+         let lastVoteKey = null;
+
+         function setMultiplayerOverlayVisible(visible) {
+             if (visible) uiMultiplayerRound.classList.remove('hidden');
+             else uiMultiplayerRound.classList.add('hidden');
+         }
+
+         function clearMultiplayerActions() {
+             uiMultiplayerActions.innerHTML = '';
+         }
+
+         function addMpButton(label, onClick, opts = {}) {
+             const btn = document.createElement('button');
+             btn.className = opts.secondary
+                 ? "btn-neon w-full py-3 rounded font-bold border-gray-500 text-gray-300 hover:bg-gray-500 hover:text-black hover:shadow-gray-500/50"
+                 : "btn-neon w-full py-3 rounded font-bold";
+             btn.textContent = label;
+             if (opts.disabled) {
+                 btn.disabled = true;
+                 btn.style.opacity = '0.5';
+                 btn.style.cursor = 'not-allowed';
+             } else {
+                 btn.addEventListener('click', onClick);
+             }
+             uiMultiplayerActions.appendChild(btn);
+         }
+
+         function sendMpAction(type, payload) {
+             postToParent({ type, payload });
+         }
+
+         function renderMultiplayerOverlay() {
+             if (!EMBEDDED || !roomState || !roomState.room || !roomState.room.id) {
+                 setMultiplayerOverlayVisible(false);
+                 return;
+             }
+
+             const status = roomState.room.status;
+             const code = roomState.room.code || '';
+             const roundNumber = roomState.room.round_number || 1;
+             const isHost = Boolean(roomState.isHost);
+             const rosterCount = Number(roomState.player_count) || network.getRoster().length;
+
+             // Hide the generic menu UI when we're in a room; use the in-game overlay instead.
+             uiMainMenu.classList.add('hidden');
+
+             clearMultiplayerActions();
+
+             if (status === 'lobby') {
+                 setMultiplayerOverlayVisible(true);
+                 uiMultiplayerTitle.textContent = code ? `RAUM ${code}` : 'RAUM';
+                 uiMultiplayerSubtitle.textContent = `Bereit: ${rosterCount}/4 • Runde ${roundNumber}`;
+                 const canStart = Boolean(roomState.can_start) || rosterCount >= 2;
+                 uiMultiplayerHint.textContent = isHost
+                     ? (canStart ? 'Du bist Spielleiter. Starte, wenn ihr bereit seid.' : 'Warte, bis mindestens 2 Spieler da sind.')
+                     : 'Warte auf den Spielleiter…';
+
+                 if (isHost) {
+                     addMpButton('Start', () => sendMpAction('requestStartRoom'), { disabled: !canStart });
+                 }
+                 addMpButton('Raum verlassen', () => sendMpAction('requestLeaveRoom'), { secondary: true });
+                 return;
+             }
+
+             if (status === 'running') {
+                 setMultiplayerOverlayVisible(false);
+                 // Ensure the game view is active if we joined mid-match.
+                 if (currentState === STATE.menu) startGame(true);
+                 return;
+             }
+
+             if (status === 'finished') {
+                 setMultiplayerOverlayVisible(true);
+                 uiMultiplayerTitle.textContent = code ? `ERGEBNIS • ${code}` : 'ERGEBNIS';
+                 uiMultiplayerSubtitle.textContent = `Runde ${roundNumber} beendet`;
+                 uiMultiplayerHint.textContent = isHost
+                     ? 'Du entscheidest: Spiel beenden oder noch eine Runde.'
+                     : 'Warte auf den Spielleiter…';
+
+                 if (isHost) {
+                     addMpButton('Spiel beenden', () => sendMpAction('requestEndRoom'), { secondary: true });
+                     addMpButton('Noch eine Runde', () => sendMpAction('requestRematch'));
+                 } else {
+                     addMpButton('Raum verlassen', () => sendMpAction('requestLeaveRoom'), { secondary: true });
+                 }
+                 return;
+             }
+
+             if (status === 'vote') {
+                 setMultiplayerOverlayVisible(true);
+                 uiMultiplayerTitle.textContent = code ? `ABSTIMMUNG • ${code}` : 'ABSTIMMUNG';
+
+                 let secondsLeft = null;
+                 if (roomState.room.vote_deadline) {
+                     const deadline = new Date(roomState.room.vote_deadline).getTime();
+                     secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                 }
+
+                 const activeCount = Number(roomState.vote?.active_count) || rosterCount;
+                 const choicesIn = Number(roomState.vote?.choices_in) || 0;
+                 const allChoicesIn = Boolean(roomState.vote?.all_choices_in);
+                 const serverMyChoice = (roomState.vote && roomState.vote.my_choice !== undefined) ? roomState.vote.my_choice : null;
+                 const myChoice = serverMyChoice !== null ? serverMyChoice : localPendingVoteChoice;
+
+                 if (localPendingVoteChoice !== null && serverMyChoice === null && Date.now() - localPendingVoteAt > 30_000) {
+                     // stale pending marker
+                     localPendingVoteChoice = null;
+                     localPendingVoteAt = 0;
+                 }
+
+                 uiMultiplayerSubtitle.textContent = `Noch eine Runde? ${choicesIn}/${activeCount}${secondsLeft !== null ? ` • ${secondsLeft}s` : ''}`;
+                 uiMultiplayerHint.textContent = isHost
+                     ? (allChoicesIn ? 'Alle haben entschieden. Du kannst direkt auswerten.' : 'Warte, bis alle entschieden haben oder der Timer abläuft.')
+                     : (myChoice !== null ? `Deine Wahl: ${myChoice ? 'Weitere Runde' : 'Aussteigen'} • Warte auf den Host…` : 'Du hast maximal 15 Sekunden zum Entscheiden.');
+
+                 if (isHost) {
+                     const disableFinalize = !allChoicesIn && secondsLeft !== null && secondsLeft > 0;
+                     addMpButton('Entscheidung auswerten', () => sendMpAction('requestFinalizeRematch'), { disabled: disableFinalize });
+                     addMpButton('Raum verlassen', () => sendMpAction('requestLeaveRoom'), { secondary: true });
+                 } else {
+                     const disableVote = myChoice !== null;
+                     addMpButton('Weitere Runde mitspielen', () => {
+                         localPendingVoteChoice = true;
+                         localPendingVoteAt = Date.now();
+                         renderMultiplayerOverlay();
+                         sendMpAction('requestRespondRematch', { play: true });
+                     }, { disabled: disableVote });
+                     addMpButton('Aussteigen', () => {
+                         localPendingVoteChoice = false;
+                         localPendingVoteAt = Date.now();
+                         renderMultiplayerOverlay();
+                         sendMpAction('requestRespondRematch', { play: false });
+                     }, { secondary: true, disabled: disableVote });
+                 }
+                 return;
+             }
+
+             setMultiplayerOverlayVisible(false);
+         }
+
+         /**
+          * SPIEL LOGIK
+          */
+         class Game {
+             constructor() {
+                 this.player = {
+                     x: 0,
+                     y: 0,
+                     vx: 0,
+                     color: '#00ffff',
+                     trail: []
+                 };
+                 this.obstacles = []; // kept for backward compatibility; rendered via deterministic level now
+                 this.bullets = [];
+                 this.asteroids = [];
+                 this.powerups = [];
+                 this.particles = [];
+                 
+                 this.score = 0;
+                 this.speedMultiplier = 1;
+
+                 // Deterministic, looping level design (shared across multiplayer)
+                 this.levelSeed = 1;
+                 this.levelSegments = [];
+                 this.scrollY = 0;
+                 this.scrollYTarget = 0;
+                 this.lastScrollSpeed = CONFIG.scrollSpeedBase;
+                 this.segmentPassed = -1;
+                 this.clientScrollSpeed = CONFIG.scrollSpeedBase;
+
+                 this.asteroidShapeCache = new Map(); // key -> points
+                 
+                 // Inputs
+                 this.keys = { left: false, right: false };
+                 this.joystickVal = 0; // -1 (links) bis 1 (rechts)
+                 
+                 this.lastGapX = 0;
+                 this.isInvincible = false;
+                 this.invincibleTimer = 0;
+                 this.baseSpeed = 1;
+
+                // Multiplayer (host authoritative)
+                this.mpPlayers = new Map(); // id -> {x,y,trail,score,color,display_name,isDead,isInvincible,invincibleTimer,moveBoostTimer}
+                this.mpInputs = new Map(); // id -> moveX
+                this.mpShootQueue = new Set(); // ids that requested a shot
+                this.mpElapsed = 0;
+                 this.mpHasWorld = false;
+                this.mpLocalDeadShown = false;
+                this.mpWorldTime = 0;
+                this.lastInputBroadcastAt = 0;
+                this.lastWorldBroadcastAt = 0;
+            }
+
+            init() {
+                this.resize();
+                this.reset();
+                window.addEventListener('resize', () => this.resize());
+                this.bindInput();
+            }
+
+            resize() {
+                const size = Math.min(window.innerWidth, window.innerHeight);
+                if (root) {
+                    root.style.width = `${size}px`;
+                    root.style.height = `${size}px`;
+                }
+
+                canvas.width = VIEWPORT_SIZE;
+                canvas.height = VIEWPORT_SIZE;
+                if (currentState === STATE.menu) {
+                    this.player.x = canvas.width / 2;
+                    this.player.y = canvas.height - 150;
+                }
+                
+                // Mobile check
+                if('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                    if (currentState === STATE.playing) {
+                        mobileControls.classList.remove('hidden');
+                    } else {
+                        mobileControls.classList.add('hidden');
+                    }
+                } else {
+                    mobileControls.classList.add('hidden');
+                }
+            }
+
+             reset() {
+                 this.player.x = canvas.width / 2;
+                 this.player.y = canvas.height - 150;
+                 this.player.trail = [];
+                 this.obstacles = [];
+                 this.bullets = [];
+                 this.asteroids = [];
+                 this.powerups = [];
+                 this.particles = [];
+                 this.score = 0;
+                 this.speedMultiplier = 1;
+                 this.baseSpeed = 1;
+                 this.scrollY = 0;
+                 this.scrollYTarget = 0;
+                 this.lastScrollSpeed = CONFIG.scrollSpeedBase;
+                 this.segmentPassed = -1;
+                 this.clientScrollSpeed = CONFIG.scrollSpeedBase;
+                 this.lastGapX = canvas.width / 2;
+                 this.isInvincible = false;
+                 this.invincibleTimer = 0;
+
+                 this.mpPlayers.clear();
+                this.mpInputs.clear();
+                this.mpShootQueue.clear();
+                this.mpElapsed = 0;
+                this.mpHasWorld = false;
+                this.mpLocalDeadShown = false;
+                this.mpWorldTime = 0;
+                this.lastInputBroadcastAt = 0;
+                this.lastWorldBroadcastAt = 0;
+                
+                // Inputs reset
+                this.keys.left = false;
+                this.keys.right = false;
+                this.joystickVal = 0;
+
+                 powerupStatus.classList.add('hidden');
+
+                 const seed =
+                     (network.role === 'host' || network.role === 'client') && roomState?.room?.id
+                         ? hashStringToSeed(`${roomState.room.id}:${roomState.room.round_number || 1}`)
+                         : hashStringToSeed(String(Date.now()));
+                 this.setLevelSeed(seed);
+             }
+
+            shoot() {
+                if(currentState !== STATE.playing) return;
+
+                if (network.role === 'client') {
+                    network.broadcastShoot();
+                    return;
+                }
+
+                if (network.role === 'host') {
+                    const id = network.localPlayerId;
+                    const p = this.mpPlayers.get(id);
+                    if (!p || p.isDead) return;
+                    this.bullets.push({
+                        ownerId: id,
+                        x: p.x,
+                        y: p.y - 20,
+                        w: 4,
+                        h: 15
+                    });
+                    this.explode(p.x, p.y + 10, '#ff0055', 5);
+                    return;
+                }
+                
+                this.bullets.push({
+                    ownerId: network.localPlayerId,
+                    x: this.player.x,
+                    y: this.player.y - 20,
+                    w: 4,
+                    h: 15
+                });
+                
+                this.explode(this.player.x, this.player.y + 10, '#ff0055', 5);
+            }
+
+            spawnAsteroid() {
+                const size = 30 + Math.random() * 20;
+                const seed = Math.floor(Math.random() * 1000000000);
+                this.asteroids.push({
+                    x: Math.random() * (canvas.width - size) + size/2,
+                    y: -100,
+                    radius: size / 2,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 0.1,
+                    seed,
+                    points: this.createAsteroidShape(size / 2, seed),
+                    hp: 1
+                });
+            }
+
+             createAsteroidShape(radius, seed) {
+                 const safeSeed = (seed || 1) >>> 0;
+                 const safeRadius = Math.max(1, Math.round((Number(radius) || 1) * 10) / 10);
+                 const key = `${safeSeed}:${safeRadius}`;
+                 const cached = this.asteroidShapeCache.get(key);
+                 if (cached) return cached;
+
+                 const rng = mulberry32(safeSeed);
+                 const points = [];
+                 const segments = 8;
+                 for (let i = 0; i < segments; i++) {
+                     const angle = (i / segments) * Math.PI * 2;
+                     const r = safeRadius * (0.8 + rng() * 0.4);
+                     points.push({
+                         x: Math.cos(angle) * r,
+                         y: Math.sin(angle) * r
+                     });
+                 }
+
+                 this.asteroidShapeCache.set(key, points);
+                 return points;
+             }
+
+            spawnPowerup() {
+                this.powerups.push({
+                    x: Math.random() * (canvas.width - 60) + 30,
+                    y: -50,
+                    type: 'speed',
+                    radius: 15,
+                    pulse: 0
+                });
+            }
+
+             activatePowerup(type) {
+                 if (type === 'speed') {
+                     this.isInvincible = true;
+                     this.invincibleTimer = 4.0; 
+                     this.baseSpeed = 2.5; 
+                     powerupStatus.classList.remove('hidden');
+                     this.explode(this.player.x, this.player.y, '#ffff00', 50);
+                 }
+             }
+
+             setLevelSeed(seed) {
+                 const next = (Number(seed) || 1) >>> 0;
+                 if (this.levelSeed === next && Array.isArray(this.levelSegments) && this.levelSegments.length) return;
+                 this.levelSeed = next;
+                 this.levelSegments = this.generateLevelSegments(next);
+             }
+
+             generateLevelSegments(seed) {
+                 const rng = mulberry32((seed || 1) >>> 0);
+                 const segments = [];
+
+                 const gapH = CONFIG.obstacleGapHeight;
+                 const timeToNext = gapH / CONFIG.scrollSpeedMax;
+                 const maxDelta = Math.max(120, Math.min(260, (CONFIG.playerSpeed * timeToNext) * 1.2));
+
+                 let lastGapX = canvas.width / 2;
+                 for (let i = 0; i < LEVEL_SEGMENTS; i++) {
+                     const minX = Math.max(CONFIG.gapWidth / 2 + 20, lastGapX - maxDelta);
+                     const maxX = Math.min(canvas.width - CONFIG.gapWidth / 2 - 20, lastGapX + maxDelta);
+                     const gapX = minX + (maxX - minX) * rng();
+                     const hue = Math.floor(rng() * 360);
+                     segments.push({
+                         gapX,
+                         color: `hsl(${hue}, 70%, 50%)`,
+                     });
+                     lastGapX = gapX;
+                 }
+
+                 // Rotate so the loop boundary is as smooth as possible (minimal jump).
+                 let bestIdx = 0;
+                 let bestDelta = Infinity;
+                 for (let i = 1; i < segments.length; i++) {
+                     const d = Math.abs(segments[i].gapX - segments[i - 1].gapX);
+                     if (d < bestDelta) {
+                         bestDelta = d;
+                         bestIdx = i;
+                     }
+                 }
+
+                 if (bestIdx > 0) {
+                     return segments.slice(bestIdx).concat(segments.slice(0, bestIdx));
+                 }
+                 return segments;
+             }
+
+             getGapForSegmentIndex(segmentIndex) {
+                 if (segmentIndex < WARMUP_SEGMENTS) {
+                     return {
+                         gapX: canvas.width / 2,
+                         gapWidth: canvas.width * 2,
+                         color: '#00ffff',
+                     };
+                 }
+
+                 const idx = (segmentIndex - WARMUP_SEGMENTS) % LEVEL_SEGMENTS;
+                 const seg = this.levelSegments[idx] || { gapX: canvas.width / 2, color: '#00ffff' };
+                 return {
+                     gapX: seg.gapX,
+                     gapWidth: CONFIG.gapWidth,
+                     color: seg.color,
+                 };
+             }
+
+             getVisibleObstacles() {
+                 const gapH = CONFIG.obstacleGapHeight;
+                 const minY = -80;
+                 const maxY = canvas.height + 80;
+
+                 const minSeg = Math.max(0, Math.floor((this.scrollY - maxY) / gapH) - 1);
+                 const maxSeg = Math.max(0, Math.ceil((this.scrollY - minY) / gapH) - 1);
+
+                 const out = [];
+                 for (let seg = minSeg; seg <= maxSeg; seg++) {
+                     const y = -gapH * (seg + 1) + this.scrollY;
+                     const gap = this.getGapForSegmentIndex(seg);
+                     out.push({
+                         y,
+                         gapX: gap.gapX,
+                         gapWidth: gap.gapWidth,
+                         h: 20,
+                         color: gap.color,
+                     });
+                 }
+                 return out;
+             }
+
+             addObstacle(yPos) {
+                 const timeToNext = CONFIG.obstacleGapHeight / (CONFIG.scrollSpeedBase * this.speedMultiplier * this.baseSpeed);
+                 const maxReach = (CONFIG.playerSpeed * timeToNext) * 1.2; 
+
+                const minX = Math.max(CONFIG.gapWidth/2 + 20, this.lastGapX - maxReach);
+                const maxX = Math.min(canvas.width - CONFIG.gapWidth/2 - 20, this.lastGapX + maxReach);
+
+                const newGapX = Math.random() * (maxX - minX) + minX;
+                
+                this.obstacles.push({
+                    y: yPos,
+                    gapX: newGapX,
+                    gapWidth: CONFIG.gapWidth,
+                    h: 20,
+                    passed: false,
+                    passedBy: new Set(),
+                    color: `hsl(${Math.random() * 360}, 70%, 50%)`
+                });
+
+                this.lastGapX = newGapX;
+            }
+
+            explode(x, y, color, count = 20) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x: x, 
+                        y: y,
+                        vx: (Math.random() - 0.5) * 400,
+                        vy: (Math.random() - 0.5) * 400,
+                        life: 1.0,
+                        color: color
+                    });
+                }
+            }
+
+            getInputX() {
+                let inputX = 0;
+                if (this.keys.left) inputX -= 1;
+                if (this.keys.right) inputX += 1;
+                inputX += this.joystickVal;
+                if (inputX < -1) inputX = -1;
+                if (inputX > 1) inputX = 1;
+                return inputX;
+            }
+
+            broadcastMultiplayerInput() {
+                const now = performance.now();
+                if (now - this.lastInputBroadcastAt < 50) return;
+                this.lastInputBroadcastAt = now;
+                network.broadcastInput(this.getInputX());
+            }
+
+            setRemoteInput(payload) {
+                const id = payload && payload.id ? String(payload.id) : null;
+                if (!id) return;
+                const moveX = Number(payload.moveX) || 0;
+                this.mpInputs.set(id, Math.max(-1, Math.min(1, moveX)));
+            }
+
+            queueRemoteShoot(payload) {
+                const id = payload && payload.id ? String(payload.id) : null;
+                if (!id) return;
+                this.mpShootQueue.add(id);
+            }
+
+            showLocalGameOver(score) {
+                if (this.mpLocalDeadShown) return;
+                this.mpLocalDeadShown = true;
+                finalScoreDisplay.innerText = score;
+                uiGameOver.classList.remove('hidden');
+                // HUD can stay visible; game continues in multiplayer
+            }
+
+            ensureMultiplayerPlayers() {
+                const roster = network.getRoster();
+                const ids = new Set(roster.map((p) => p.id));
+
+                for (const id of Array.from(this.mpPlayers.keys())) {
+                    if (!ids.has(id)) this.mpPlayers.delete(id);
+                }
+
+                const n = roster.length || 1;
+                const spacing = 80;
+                for (let idx = 0; idx < roster.length; idx++) {
+                    const r = roster[idx];
+                    if (!this.mpPlayers.has(r.id)) {
+                        const offset = (idx - (n - 1) / 2) * spacing;
+                         this.mpPlayers.set(r.id, {
+                             x: canvas.width / 2 + offset,
+                             y: canvas.height - 150,
+                             trail: [],
+                             score: 0,
+                             passedSeg: -1,
+                             color: r.color || '#94a3b8',
+                             display_name: r.display_name || null,
+                             isDead: false,
+                             isInvincible: false,
+                             invincibleTimer: 0,
+                             moveBoostTimer: 0,
+                         });
+                    } else {
+                        const p = this.mpPlayers.get(r.id);
+                        p.color = r.color || p.color;
+                        p.display_name = r.display_name || p.display_name;
+                    }
+                }
+            }
+
+             buildWorldSnapshot() {
+                 return {
+                     t: Date.now(),
+                     viewport: VIEWPORT_SIZE,
+                     levelSeed: this.levelSeed,
+                     scrollY: this.scrollY,
+                     scrollSpeed: this.lastScrollSpeed,
+                     asteroids: this.asteroids.map((a) => ({
+                         x: a.x,
+                         y: a.y,
+                         radius: a.radius,
+                         rotation: a.rotation,
+                         rotSpeed: a.rotSpeed,
+                         seed: a.seed || 0,
+                     })),
+                     powerups: this.powerups.map((p) => ({
+                         x: p.x,
+                         y: p.y,
+                         type: p.type,
+                         radius: p.radius,
+                         pulse: p.pulse,
+                     })),
+                     bullets: this.bullets.map((b) => ({
+                         ownerId: b.ownerId || network.localPlayerId,
+                         x: b.x,
+                         y: b.y,
+                         w: b.w,
+                         h: b.h,
+                     })),
+                     players: Array.from(this.mpPlayers.entries()).map(([id, p]) => ({
+                         id,
+                         x: p.x,
+                         y: p.y,
+                         score: p.score,
+                         isDead: Boolean(p.isDead),
+                         isInvincible: Boolean(p.isInvincible),
+                         color: p.color,
+                         display_name: p.display_name,
+                     })),
+                 };
+             }
+
+             applyWorldSnapshot(snapshot) {
+                 if (!snapshot) return;
+                 const hadWorld = this.mpHasWorld;
+                 this.mpHasWorld = true;
+                 this.mpWorldTime = Number(snapshot.t) || Date.now();
+
+                 if (snapshot.levelSeed !== undefined) {
+                     this.setLevelSeed(Number(snapshot.levelSeed) || 1);
+                 }
+                 if (snapshot.scrollY !== undefined) {
+                     this.scrollYTarget = Number(snapshot.scrollY) || 0;
+                     if (!hadWorld) this.scrollY = this.scrollYTarget;
+                 }
+                 if (snapshot.scrollSpeed !== undefined) {
+                     this.clientScrollSpeed = Number(snapshot.scrollSpeed) || CONFIG.scrollSpeedBase;
+                 }
+
+                 if (Array.isArray(snapshot.asteroids)) {
+                     const prevBySeed = new Map((this.asteroids || []).map((a) => [Number(a.seed) || 0, a]));
+                     this.asteroids = snapshot.asteroids.map((a) => {
+                         const radius = Number(a.radius) || 20;
+                         const seed = Number(a.seed) || 1;
+                         const prev = prevBySeed.get(seed);
+                         return {
+                             x: Number(a.x) || 0,
+                             y: Number(a.y) || 0,
+                             radius,
+                             rotation: Number(a.rotation) || 0,
+                             rotSpeed: Number(a.rotSpeed) || 0,
+                             seed,
+                             points: prev?.points || this.createAsteroidShape(radius, seed),
+                             hp: 1,
+                         };
+                     });
+                 }
+
+                if (Array.isArray(snapshot.powerups)) {
+                    this.powerups = snapshot.powerups.map((p) => ({
+                        x: Number(p.x) || 0,
+                        y: Number(p.y) || 0,
+                        type: p.type || 'speed',
+                        radius: Number(p.radius) || 15,
+                        pulse: Number(p.pulse) || 0,
+                    }));
+                }
+
+                if (Array.isArray(snapshot.bullets)) {
+                    this.bullets = snapshot.bullets.map((b) => ({
+                        ownerId: b.ownerId || null,
+                        x: Number(b.x) || 0,
+                        y: Number(b.y) || 0,
+                        w: Number(b.w) || 4,
+                        h: Number(b.h) || 15,
+                    }));
+                }
+
+                 if (Array.isArray(snapshot.players)) {
+                     const localId = network.localPlayerId;
+                     const prevLocal = this.mpPlayers.get(localId);
+                     const prevLocalDead = prevLocal ? Boolean(prevLocal.isDead) : false;
+
+                     const prevPlayers = this.mpPlayers;
+                     this.mpPlayers = new Map();
+                     for (const raw of snapshot.players) {
+                         if (!raw?.id) continue;
+                         const id = String(raw.id);
+                         const prev = prevPlayers.get(id);
+                         const next = prev || {
+                             x: 0,
+                             y: canvas.height - 150,
+                             trail: [],
+                             score: 0,
+                             passedSeg: -1,
+                             color: '#94a3b8',
+                             display_name: null,
+                             isDead: false,
+                             isInvincible: false,
+                             invincibleTimer: 0,
+                             moveBoostTimer: 0,
+                         };
+                         next.x = Number(raw.x) || 0;
+                         next.y = Number(raw.y) || canvas.height - 150;
+                         next.score = Number(raw.score) || 0;
+                         next.color = raw.color || '#94a3b8';
+                         next.display_name = raw.display_name || null;
+                         next.isDead = Boolean(raw.isDead);
+                         next.isInvincible = Boolean(raw.isInvincible);
+                         this.mpPlayers.set(id, next);
+                     }
+
+                    const localNow = this.mpPlayers.get(localId);
+                    if (localNow) {
+                        scoreDisplay.innerText = String(localNow.score || 0);
+                        network.broadcastPosition(localNow.x, localNow.y, localNow.isDead, localNow.score);
+
+                        if (!prevLocalDead && localNow.isDead) {
+                            this.showLocalGameOver(localNow.score || 0);
+                            network.broadcastGameOver(localNow.score || 0);
+                        }
+                    }
+                 }
+             }
+
+             updateMultiplayerClient(dt) {
+                 // Smoothly animate between snapshots using the last known scroll speed.
+                 const currentScrollSpeed = Number(this.clientScrollSpeed) || CONFIG.scrollSpeedBase;
+                 this.scrollY += currentScrollSpeed * dt;
+                 const drift = this.scrollYTarget - this.scrollY;
+                 // Smooth correction to avoid visible jumps when snapshots arrive late.
+                 this.scrollY += drift * Math.min(1, dt * 6);
+                 this.lastScrollSpeed = currentScrollSpeed;
+
+                 // Lightweight local animation only (authoritative state still comes from the host snapshot).
+                 for (let i = this.bullets.length - 1; i >= 0; i--) {
+                     const b = this.bullets[i];
+                     b.y -= CONFIG.bulletSpeed * dt;
+                     if (b.y < -50) this.bullets.splice(i, 1);
+                 }
+
+                 for (let i = this.asteroids.length - 1; i >= 0; i--) {
+                     const ast = this.asteroids[i];
+                     ast.y += (currentScrollSpeed + CONFIG.asteroidSpeedAdd) * dt;
+                     ast.rotation += ast.rotSpeed;
+                     if (ast.y > canvas.height + 50) this.asteroids.splice(i, 1);
+                 }
+
+                 for (let i = this.powerups.length - 1; i >= 0; i--) {
+                     const pup = this.powerups[i];
+                     pup.y += currentScrollSpeed * dt;
+                     pup.pulse += dt * 5;
+                     if (pup.y > canvas.height + 50) this.powerups.splice(i, 1);
+                 }
+
+                 for (let i = this.particles.length - 1; i >= 0; i--) {
+                     const p = this.particles[i];
+                     p.x += p.vx * dt;
+                     p.y += p.vy * dt;
+                     p.life -= dt * 2;
+                     if (p.life <= 0) this.particles.splice(i, 1);
+                 }
+             }
+
+             updateMultiplayerHost(dt) {
+                 this.mpElapsed += dt;
+                 const speedMultiplier = 1 + this.mpElapsed * 0.03;
+                 const currentScrollSpeed = CONFIG.scrollSpeedBase * speedMultiplier;
+                 this.scrollY += currentScrollSpeed * dt;
+                 this.lastScrollSpeed = currentScrollSpeed;
+
+                 this.ensureMultiplayerPlayers();
+
+                // local input
+                this.mpInputs.set(network.localPlayerId, this.getInputX());
+
+                // timers
+                for (const p of this.mpPlayers.values()) {
+                    if (p.isDead) continue;
+                    if (p.isInvincible) {
+                        p.invincibleTimer -= dt;
+                        p.moveBoostTimer = p.invincibleTimer;
+                        if (p.invincibleTimer <= 0) {
+                            p.isInvincible = false;
+                            p.moveBoostTimer = 0;
+                            if (p === this.mpPlayers.get(network.localPlayerId)) powerupStatus.classList.add('hidden');
+                        }
+                    }
+                }
+
+                // movement + trail
+                for (const [id, p] of this.mpPlayers.entries()) {
+                    if (p.isDead) continue;
+                    const moveX = this.mpInputs.get(id) || 0;
+                    const moveSpeed = CONFIG.playerSpeed * (p.moveBoostTimer > 0 ? 1.5 : 1);
+                    p.x += moveX * moveSpeed * dt;
+                    if (p.x < CONFIG.playerSize) p.x = CONFIG.playerSize;
+                    if (p.x > canvas.width - CONFIG.playerSize) p.x = canvas.width - CONFIG.playerSize;
+                    p.trail.push({x: p.x, y: p.y, life: 1.0});
+                }
+
+                // queued shoots
+                for (const id of Array.from(this.mpShootQueue.values())) {
+                    const p = this.mpPlayers.get(id);
+                    if (p && !p.isDead) {
+                        this.bullets.push({
+                            ownerId: id,
+                            x: p.x,
+                            y: p.y - 20,
+                            w: 4,
+                            h: 15
+                        });
+                    }
+                }
+                this.mpShootQueue.clear();
+
+                // bullets update
+                for (let i = this.bullets.length - 1; i >= 0; i--) {
+                    const b = this.bullets[i];
+                    b.y -= CONFIG.bulletSpeed * dt;
+                    if (b.y < -50) this.bullets.splice(i, 1);
+                }
+
+                 // spawning (host only)
+                 if (Math.random() < CONFIG.spawnRates.asteroid) this.spawnAsteroid();
+                 if (Math.random() < CONFIG.spawnRates.powerup) this.spawnPowerup();
+
+                 // obstacles (deterministic level) + collision per player
+                 const obstacles = this.getVisibleObstacles();
+                 const r = CONFIG.playerSize / 2;
+
+                 for (const [id, p] of this.mpPlayers.entries()) {
+                     if (p.isDead) continue;
+                     const passedMax = Math.floor((this.scrollY - (p.y + r)) / CONFIG.obstacleGapHeight) - 1;
+                     if (passedMax > (p.passedSeg ?? -1)) {
+                         p.score += passedMax - (p.passedSeg ?? -1);
+                         p.passedSeg = passedMax;
+                         if (id === network.localPlayerId) scoreDisplay.innerText = String(p.score);
+                     }
+                 }
+
+                 for (const obs of obstacles) {
+                     for (const p of this.mpPlayers.values()) {
+                         if (p.isDead) continue;
+
+                         if (p.y + r > obs.y && p.y - r < obs.y + obs.h) {
+                             const gapLeft = obs.gapX - obs.gapWidth / 2;
+                             const gapRight = obs.gapX + obs.gapWidth / 2;
+
+                             if (p.x - r < gapLeft || p.x + r > gapRight) {
+                                 if (p.isInvincible) {
+                                     this.explode(p.x, obs.y, obs.color, 10);
+                                 } else {
+                                     p.isDead = true;
+                                 }
+                             }
+                         }
+                     }
+                 }
+
+                // asteroids collision
+                for (let i = this.asteroids.length - 1; i >= 0; i--) {
+                    const ast = this.asteroids[i];
+                    ast.y += (currentScrollSpeed + CONFIG.asteroidSpeedAdd) * dt;
+                    ast.rotation += ast.rotSpeed;
+
+                    // player collision
+                    for (const [id, p] of this.mpPlayers.entries()) {
+                        if (p.isDead) continue;
+                        const dx = p.x - ast.x;
+                        const dy = p.y - ast.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < ast.radius + CONFIG.playerSize/2) {
+                            if (p.isInvincible) {
+                                this.explode(ast.x, ast.y, '#888888', 15);
+                                this.asteroids.splice(i, 1);
+                                p.score += 5;
+                                if (id === network.localPlayerId) scoreDisplay.innerText = String(p.score);
+                            } else {
+                                p.isDead = true;
+                            }
+                            break;
+                        }
+                    }
+
+                    // bullets collision (award shooter)
+                    for (let j = this.bullets.length - 1; j >= 0; j--) {
+                        const b = this.bullets[j];
+                        if (Math.abs(b.x - ast.x) < ast.radius && Math.abs(b.y - ast.y) < ast.radius) {
+                            const shooter = this.mpPlayers.get(b.ownerId);
+                            if (shooter && !shooter.isDead) {
+                                shooter.score += 10;
+                                if (b.ownerId === network.localPlayerId) scoreDisplay.innerText = String(shooter.score);
+                            }
+                            this.explode(ast.x, ast.y, '#aaaaaa', 20);
+                            this.asteroids.splice(i, 1);
+                            this.bullets.splice(j, 1);
+                            break;
+                        }
+                    }
+
+                    if (ast.y > canvas.height + 50) this.asteroids.splice(i, 1);
+                }
+
+                // powerups
+                for (let i = this.powerups.length - 1; i >= 0; i--) {
+                    const pup = this.powerups[i];
+                    pup.y += currentScrollSpeed * dt;
+                    pup.pulse += dt * 5;
+
+                    for (const [id, p] of this.mpPlayers.entries()) {
+                        if (p.isDead) continue;
+                        const dx = p.x - pup.x;
+                        const dy = p.y - pup.y;
+                        if (Math.sqrt(dx*dx + dy*dy) < pup.radius + CONFIG.playerSize) {
+                            p.isInvincible = true;
+                            p.invincibleTimer = 4.0;
+                            p.moveBoostTimer = 4.0;
+                            if (id === network.localPlayerId) {
+                                powerupStatus.classList.remove('hidden');
+                                this.explode(p.x, p.y, '#ffff00', 50);
+                            }
+                            this.powerups.splice(i, 1);
+                            break;
+                        }
+                    }
+
+                    if (pup.y > canvas.height + 50) this.powerups.splice(i, 1);
+                }
+
+                // particles
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                    p.life -= dt * 2;
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                }
+
+                // trails
+                for (const p of this.mpPlayers.values()) {
+                    for(let i = p.trail.length - 1; i >= 0; i--) {
+                        p.trail[i].life -= dt * 5;
+                        p.trail[i].y += currentScrollSpeed * dt;
+                        if(p.trail[i].life <= 0) p.trail.splice(i, 1);
+                    }
+                }
+
+                // local death detection + reporting
+                const local = this.mpPlayers.get(network.localPlayerId);
+                if (local) {
+                    network.broadcastPosition(local.x, local.y, local.isDead, local.score);
+                    if (local.isDead && !this.mpLocalDeadShown) {
+                        this.showLocalGameOver(local.score);
+                        network.broadcastGameOver(local.score);
+                    }
+                }
+
+                // broadcast world snapshot (host)
+                const now = performance.now();
+                if (now - this.lastWorldBroadcastAt > 80) {
+                    this.lastWorldBroadcastAt = now;
+                    network.broadcastWorld(this.buildWorldSnapshot());
+                }
+            }
+
+            updateSingle(dt) {
+                if (this.isInvincible) {
+                    this.invincibleTimer -= dt;
+                    if (this.invincibleTimer <= 0) {
+                        this.isInvincible = false;
+                        this.baseSpeed = 1;
+                        powerupStatus.classList.add('hidden');
+                    }
+                }
+
+                 this.speedMultiplier = 1 + (this.score * 0.005);
+                 const currentScrollSpeed = CONFIG.scrollSpeedBase * this.speedMultiplier * this.baseSpeed;
+                 this.scrollY += currentScrollSpeed * dt;
+                 this.lastScrollSpeed = currentScrollSpeed;
+
+                // --- SPIELER BEWEGUNG ---
+                const moveSpeed = CONFIG.playerSpeed * (this.isInvincible ? 1.5 : 1);
+                const inputX = this.getInputX();
+
+                this.player.x += inputX * moveSpeed * dt;
+
+                if (this.player.x < CONFIG.playerSize) this.player.x = CONFIG.playerSize;
+                if (this.player.x > canvas.width - CONFIG.playerSize) this.player.x = canvas.width - CONFIG.playerSize;
+
+                this.player.trail.push({x: this.player.x, y: this.player.y, life: 1.0});
+
+                // --- BULLETS ---
+                for (let i = this.bullets.length - 1; i >= 0; i--) {
+                    const b = this.bullets[i];
+                    b.y -= CONFIG.bulletSpeed * dt;
+                    if (b.y < -50) this.bullets.splice(i, 1);
+                }
+
+                // --- SPAWNING ---
+                if (Math.random() < CONFIG.spawnRates.asteroid) this.spawnAsteroid();
+                if (Math.random() < CONFIG.spawnRates.powerup) this.spawnPowerup();
+
+                 // --- OBSTACLES (deterministic level) & COLLISION ---
+                 const p = this.player;
+                 const r = CONFIG.playerSize / 2;
+                 const passedMax = Math.floor((this.scrollY - (p.y + r)) / CONFIG.obstacleGapHeight) - 1;
+                 if (passedMax > this.segmentPassed) {
+                     this.score += passedMax - this.segmentPassed;
+                     this.segmentPassed = passedMax;
+                     scoreDisplay.innerText = String(this.score);
+                 }
+
+                 const obstacles = this.getVisibleObstacles();
+                 for (const obs of obstacles) {
+                     if (p.y + r > obs.y && p.y - r < obs.y + obs.h) {
+                         const gapLeft = obs.gapX - obs.gapWidth / 2;
+                         const gapRight = obs.gapX + obs.gapWidth / 2;
+
+                         if (p.x - r < gapLeft || p.x + r > gapRight) {
+                             if (this.isInvincible) {
+                                 this.explode(p.x, obs.y, obs.color, 10);
+                             } else {
+                                 this.gameOver();
+                             }
+                         }
+                     }
+                 }
+
+                // Asteroiden & Powerups Kollision
+                for (let i = this.asteroids.length - 1; i >= 0; i--) {
+                    const ast = this.asteroids[i];
+                    ast.y += (currentScrollSpeed + CONFIG.asteroidSpeedAdd) * dt;
+                    ast.rotation += ast.rotSpeed;
+
+                    const dx = this.player.x - ast.x;
+                    const dy = this.player.y - ast.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < ast.radius + CONFIG.playerSize/2) {
+                        if (this.isInvincible) {
+                            this.explode(ast.x, ast.y, '#888888', 15);
+                            this.asteroids.splice(i, 1);
+                            this.score += 5;
+                            continue;
+                        } else {
+                            this.gameOver();
+                        }
+                    }
+
+                    for (let j = this.bullets.length - 1; j >= 0; j--) {
+                        const b = this.bullets[j];
+                        if (Math.abs(b.x - ast.x) < ast.radius && Math.abs(b.y - ast.y) < ast.radius) {
+                            this.explode(ast.x, ast.y, '#aaaaaa', 20);
+                            this.asteroids.splice(i, 1);
+                            this.bullets.splice(j, 1);
+                            this.score += 10;
+                            scoreDisplay.innerText = this.score;
+                            break;
+                        }
+                    }
+
+                    if (ast.y > canvas.height + 50) this.asteroids.splice(i, 1);
+                }
+
+                for (let i = this.powerups.length - 1; i >= 0; i--) {
+                    const pup = this.powerups[i];
+                    pup.y += currentScrollSpeed * dt;
+                    pup.pulse += dt * 5;
+
+                    const dx = this.player.x - pup.x;
+                    const dy = this.player.y - pup.y;
+                    if (Math.sqrt(dx*dx + dy*dy) < pup.radius + CONFIG.playerSize) {
+                        this.activatePowerup(pup.type);
+                        this.powerups.splice(i, 1);
+                        continue;
+                    }
+
+                    if (pup.y > canvas.height + 50) this.powerups.splice(i, 1);
+                }
+
+                // Partikel & Trail
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                    p.life -= dt * 2;
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                }
+
+                for(let i = this.player.trail.length - 1; i >= 0; i--) {
+                    this.player.trail[i].life -= dt * 5;
+                    this.player.trail[i].y += currentScrollSpeed * dt;
+                    if(this.player.trail[i].life <= 0) this.player.trail.splice(i, 1);
+                }
+
+                network.broadcastPosition(this.player.x, this.player.y, false, this.score);
+            }
+
+             update(dt) {
+                 if (currentState !== STATE.playing) return;
+
+                 if (network.role === 'host' || network.role === 'client') {
+                     this.broadcastMultiplayerInput();
+                     if (network.role === 'host') {
+                         this.updateMultiplayerHost(dt);
+                     } else {
+                         this.updateMultiplayerClient(dt);
+                     }
+                     return;
+                 }
+
+                 this.updateSingle(dt);
+             }
+
+            bindInput() {
+                // Keyboard
+                window.addEventListener('keydown', (e) => {
+                    if (e.code === 'ArrowLeft') this.keys.left = true;
+                    if (e.code === 'ArrowRight') this.keys.right = true;
+                    if (e.code === 'Space') this.shoot();
+                });
+                window.addEventListener('keyup', (e) => {
+                    if (e.code === 'ArrowLeft') this.keys.left = false;
+                    if (e.code === 'ArrowRight') this.keys.right = false;
+                });
+
+                // JOYSTICK LOGIC
+                let joystickActive = false;
+                let joystickCenter = { x: 0, y: 0 };
+                const maxRadius = 35; // Wie weit man den Stick ziehen kann
+
+                joystickZone.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    joystickActive = true;
+                    joystickStick.classList.add('active');
+                    
+                    // Center des Sticks relativ zur Zone ermitteln
+                    const rect = joystickZone.getBoundingClientRect();
+                    joystickCenter = {
+                        x: rect.left + rect.width / 2,
+                        y: rect.top + rect.height / 2
+                    };
+                    
+                    // Optional: Stick sofort zur Touch-Position springen lassen
+                    this.handleJoystickMove(e.touches[0], joystickCenter, maxRadius);
+                }, { passive: false });
+
+                joystickZone.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    if (!joystickActive) return;
+                    this.handleJoystickMove(e.touches[0], joystickCenter, maxRadius);
+                }, { passive: false });
+
+                const endJoystick = (e) => {
+                    if (!joystickActive) return;
+                    e.preventDefault();
+                    joystickActive = false;
+                    joystickStick.classList.remove('active');
+                    
+                    // Reset Visuals
+                    joystickStick.style.transform = `translate(-50%, -50%)`;
+                    // Reset Input
+                    this.joystickVal = 0;
+                };
+
+                joystickZone.addEventListener('touchend', endJoystick);
+                joystickZone.addEventListener('touchcancel', endJoystick);
+
+                // FIRE BUTTON
+                btnFire.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    btnFire.style.transform = "scale(0.9)";
+                    this.shoot();
+                }, { passive: false });
+
+                btnFire.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    btnFire.style.transform = "scale(1)";
+                }, { passive: false });
+            }
+
+            handleJoystickMove(touch, center, maxRadius) {
+                const deltaX = touch.clientX - center.x;
+                const deltaY = touch.clientY - center.y;
+                
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                const angle = Math.atan2(deltaY, deltaX);
+                
+                // Begrenze auf Radius
+                const clampedDist = Math.min(distance, maxRadius);
+                
+                const moveX = Math.cos(angle) * clampedDist;
+                const moveY = Math.sin(angle) * clampedDist;
+                
+                // Bewege den Stick visuell
+                joystickStick.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
+                
+                // Berechne Input Value (-1 bis 1)
+                // Wir nehmen nur die X-Achse für die Steuerung
+                this.joystickVal = moveX / maxRadius;
+            }
+
+            draw() {
+                ctx.fillStyle = '#050505';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (network.role === 'single' && this.isInvincible) {
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.2)';
+                    ctx.lineWidth = 2;
+                    const t = Date.now() * 0.002;
+                    for(let i=0; i<5; i++) {
+                        const x = ((i * 137) + (t * 120)) % canvas.width;
+                        const len = 70 + (i * 12);
+                        ctx.beginPath();
+                        ctx.moveTo(x, 0);
+                        ctx.lineTo(x, len);
+                        ctx.stroke();
+                    }
+                }
+
+                if (network.role === 'client' && !this.mpHasWorld) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                    ctx.font = "bold 16px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Warte auf Host…", canvas.width / 2, canvas.height / 2);
+                    return;
+                }
+
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+                const renderTime = (network.role === 'single') ? Date.now() : (this.mpWorldTime || Date.now());
+                const offset = (renderTime * (0.05 * this.baseSpeed)) % 50;
+                for(let y = offset; y < canvas.height; y += 50) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+
+                // Draw Bullets
+                this.bullets.forEach(b => {
+                    const owner = (network.role === 'single') ? null : this.mpPlayers.get(b.ownerId);
+                    const color = owner?.color || '#ff0055';
+                    ctx.fillStyle = color;
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 10;
+                    ctx.fillRect(b.x - b.w/2, b.y, b.w, b.h);
+                });
+                ctx.shadowBlur = 0;
+
+                // Powerups
+                this.powerups.forEach(p => {
+                    ctx.shadowColor = '#ffff00';
+                    ctx.shadowBlur = 20;
+                    ctx.fillStyle = '#ffff00';
+                    const scale = 1 + Math.sin(p.pulse) * 0.2;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius * scale, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#000';
+                    ctx.font = "bold 12px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText("⚡", p.x, p.y + 4);
+                });
+
+                 // Obstacles
+                 this.getVisibleObstacles().forEach(obs => {
+                     ctx.fillStyle = obs.color;
+                     ctx.shadowColor = obs.color;
+                     ctx.shadowBlur = 15;
+                     ctx.fillRect(0, obs.y, obs.gapX - obs.gapWidth/2, obs.h);
+                     ctx.fillRect(obs.gapX + obs.gapWidth/2, obs.y, canvas.width - (obs.gapX + obs.gapWidth/2), obs.h);
+                     ctx.shadowBlur = 0;
+                 });
+
+                // Asteroids
+                this.asteroids.forEach(ast => {
+                    ctx.save();
+                    ctx.translate(ast.x, ast.y);
+                    ctx.rotate(ast.rotation);
+                    ctx.strokeStyle = '#888';
+                    ctx.lineWidth = 2;
+                    ctx.fillStyle = '#222';
+                    ctx.beginPath();
+                    if(ast.points.length > 0) {
+                        ctx.moveTo(ast.points[0].x, ast.points[0].y);
+                        for(let i=1; i<ast.points.length; i++) {
+                            ctx.lineTo(ast.points[i].x, ast.points[i].y);
+                        }
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                });
+
+                // Trail
+                if (network.role === 'host' || network.role === 'client') {
+                    for (const p of this.mpPlayers.values()) {
+                        (p.trail || []).forEach(t => {
+                            ctx.fillStyle = p.isInvincible ? `rgba(255, 255, 0, ${t.life * 0.8})` : `rgba(0, 255, 255, ${t.life * 0.5})`;
+                            ctx.beginPath();
+                            ctx.arc(t.x, t.y, CONFIG.playerSize/2 * t.life, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                    }
+                } else {
+                    this.player.trail.forEach(t => {
+                        ctx.fillStyle = this.isInvincible ? `rgba(255, 255, 0, ${t.life * 0.8})` : `rgba(0, 255, 255, ${t.life * 0.5})`;
+                        ctx.beginPath();
+                        ctx.arc(t.x, t.y, CONFIG.playerSize/2 * t.life, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                }
+
+                // Players
+                if (network.role === 'host' || network.role === 'client') {
+                    const localId = network.localPlayerId;
+                    const localInputTilt = this.getInputX() * 0.3;
+                    for (const [id, p] of this.mpPlayers.entries()) {
+                        const label = p.display_name ? String(p.display_name).trim().slice(0, 2).toUpperCase() : "P";
+                        const isLocal = id === localId;
+                        const color = p.isInvincible ? '#ffff00' : (p.color || '#00ffff');
+                        if (!p.isDead) this.drawPlayer(p.x, p.y, color, isLocal, label, isLocal ? localInputTilt : 0);
+                    }
+                } else {
+                    if (currentState !== STATE.gameover) {
+                        const color = this.isInvincible ? '#ffff00' : this.player.color;
+                        this.drawPlayer(this.player.x, this.player.y, color, true, null, this.getInputX() * 0.3);
+                    }
+
+                    network.getOthers().forEach((other) => {
+                        const label = other.display_name ? String(other.display_name).trim().slice(0, 2).toUpperCase() : "P";
+                        this.drawPlayer(other.x, other.y, other.color, false, label, 0);
+                    });
+                }
+
+                // Particles
+                this.particles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                });
+            }
+
+            drawPlayer(x, y, color, isLocal, label, tilt = 0) {
+                ctx.save();
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = color;
+                
+                ctx.translate(x, y);
+                if (isLocal) ctx.rotate(tilt);
+                
+                ctx.beginPath();
+                ctx.moveTo(0, -CONFIG.playerSize/2 - 5);
+                ctx.lineTo(-CONFIG.playerSize/2, CONFIG.playerSize/2);
+                ctx.lineTo(CONFIG.playerSize/2, CONFIG.playerSize/2);
+                ctx.closePath();
+                ctx.fill();
+                
+                const flameTime = (network.role === 'single') ? Date.now() : (this.mpWorldTime || Date.now());
+                if(Math.sin((flameTime + x + y) / 80) > 0) {
+                    ctx.fillStyle = (network.role === 'single' && this.isInvincible) ? '#fff' : 'orange';
+                    ctx.beginPath();
+                    ctx.moveTo(-5, CONFIG.playerSize/2);
+                    ctx.lineTo(5, CONFIG.playerSize/2);
+                    ctx.lineTo(0, CONFIG.playerSize/2 + 15);
+                    ctx.fill();
+                }
+
+                if (!isLocal) {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = "rgba(255,255,255,0.5)";
+                    ctx.font = "10px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText(label || "P", 0, -20);
+                }
+
+                ctx.restore();
+            }
+
+            gameOver() {
+                currentState = STATE.gameover;
+                this.explode(this.player.x, this.player.y, '#00ffff');
+                finalScoreDisplay.innerText = this.score;
+                uiHud.classList.add('hidden');
+                uiGameOver.classList.remove('hidden');
+                mobileControls.classList.add('hidden');
+                network.stopSimulation();
+                network.broadcastGameOver(this.score);
+            }
+        }
+
+        const game = new Game();
+        game.init();
+
+        function loop(timestamp) {
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+            lastTime = timestamp;
+            game.update(dt);
+            game.draw();
+            animationId = requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+
+        document.getElementById('btn-single').addEventListener('click', () => startGame(false));
+        document.getElementById('btn-multi-sim').addEventListener('click', () => {
+            // Multiplayer wird über das Community-Cockpit gesteuert
+            postToParent({ type: "openMultiplayer" });
+        });
+        document.getElementById('btn-restart').addEventListener('click', () => {
+            if (network.role === 'host' || network.role === 'client') {
+                uiGameOver.classList.add('hidden');
+                uiHud.classList.remove('hidden');
+                return;
+            }
+
+            uiGameOver.classList.add('hidden');
+            uiMainMenu.classList.remove('hidden');
+            game.reset();
+            currentState = STATE.menu;
+        });
+
+        function startGame(simulateMultiplayer) {
+            uiMainMenu.classList.add('hidden');
+            uiHud.classList.remove('hidden');
+            game.reset();
+            currentState = STATE.playing;
+            game.resize();
+
+            if (network.role === 'host' || network.role === 'client' || simulateMultiplayer) {
+                statusDisplay.innerText = "ONLINE (MULTI)";
+                statusDisplay.className = "text-xs font-bold text-cyan-400";
+            } else {
+                network.stopSimulation();
+            }
+        }
+
+         // Parent -> iframe messages (multiplayer sync + controls)
+         window.addEventListener('message', (event) => {
+             if (event.origin !== window.location.origin) return;
+             const data = event.data || {};
+             if (data.source !== PARENT_SOURCE) return;
+
+             if (data.type === 'init') {
+                 network.setLocalPlayer(data.payload);
+                 if (data.payload && typeof data.payload.color === 'string') {
+                     game.player.color = data.payload.color;
+                 }
+                 statusDisplay.innerText = data.payload?.statusText || "ONLINE";
+                 statusDisplay.className = network.role === 'single'
+                     ? "text-xs font-bold text-green-500"
+                     : "text-xs font-bold text-cyan-400";
+                 renderMultiplayerOverlay();
+             }
+
+             if (data.type === 'roster' || data.type === 'remotePlayers') {
+                 network.setRoster(data.payload?.players);
+                 renderMultiplayerOverlay();
+             }
+
+             if (data.type === 'roomState') {
+                 const nextState = data.payload || null;
+
+                 const nextRoom = nextState?.room || null;
+                 const nextIsVote = nextRoom?.status === 'vote' && nextRoom?.vote_action === 'rematch';
+                 const nextVoteKey = nextIsVote ? `${nextRoom?.vote_deadline || ''}` : null;
+
+                 // Reset any local vote lock when leaving vote state or when a new vote starts (2nd/3rd rematch, etc).
+                 if (!nextIsVote || (lastVoteKey && nextVoteKey && lastVoteKey !== nextVoteKey)) {
+                     localPendingVoteChoice = null;
+                     localPendingVoteAt = 0;
+                 }
+                 lastVoteKey = nextVoteKey;
+
+                 roomState = nextState;
+                 renderMultiplayerOverlay();
+             }
+
+            if (data.type === 'remoteInput') {
+                if (network.role === 'host') {
+                    game.setRemoteInput(data.payload);
+                }
+            }
+
+            if (data.type === 'remoteShoot') {
+                if (network.role === 'host') {
+                    game.queueRemoteShoot(data.payload);
+                }
+            }
+
+             if (data.type === 'world') {
+                 if (network.role === 'client') {
+                     game.applyWorldSnapshot(data.payload);
+                 }
+             }
+
+            if (data.type === 'start') {
+                startGame(Boolean(data.payload?.simulate));
+            }
+
+            if (data.type === 'reset') {
+                uiGameOver.classList.add('hidden');
+                uiHud.classList.add('hidden');
+                uiMainMenu.classList.remove('hidden');
+                currentState = STATE.menu;
+                game.reset();
+            }
+        });
+
+        postToParent({ type: "ready" });
+    </script>
+</body>
+</html>

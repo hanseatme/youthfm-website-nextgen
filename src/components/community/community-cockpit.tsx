@@ -16,7 +16,8 @@ import { LeaderboardClient } from '@/components/leaderboard/leaderboard-client'
 import { Link, useRouter } from '@/i18n/navigation'
 import { DmPanel } from '@/components/community/dm-panel'
 import { FunkbookPanel } from '@/components/community/funkbook-panel'
-import { ChevronLeft, ChevronRight, MessageCircle, MessagesSquare, Trophy, TrendingUp, Send, Reply, Sparkles, BookOpen } from 'lucide-react'
+import { AsteroidsPanel } from '@/components/community/asteroids-panel'
+import { ChevronLeft, ChevronRight, MessageCircle, MessagesSquare, Trophy, TrendingUp, Send, Reply, Sparkles, BookOpen, Gamepad2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type AvatarMap = Record<number, string>
@@ -62,7 +63,7 @@ type ActivityItem = {
   href?: string
 }
 
-const VALID_TABS = new Set(['discussion', 'funkbook', 'messages', 'leaderboard'])
+const VALID_TABS = new Set(['discussion', 'funkbook', 'asteroids', 'messages', 'leaderboard'])
 
 export function CommunityCockpit() {
   const t = useTranslations('community')
@@ -466,6 +467,10 @@ export function CommunityCockpit() {
                   <BookOpen className="h-4 w-4" />
                   {locale === 'de' ? 'Funkbuch' : 'Funkbook'}
                 </TabsTrigger>
+                <TabsTrigger value="asteroids" className="flex items-center gap-2">
+                  <Gamepad2 className="h-4 w-4" />
+                  {locale === 'de' ? 'Asteroids' : 'Asteroids'}
+                </TabsTrigger>
                 <TabsTrigger value="messages" className="flex items-center gap-2">
                   <MessagesSquare className="h-4 w-4" />
                   {locale === 'de' ? 'Nachrichten' : 'Messages'}
@@ -696,6 +701,10 @@ export function CommunityCockpit() {
 
                 <TabsContent value="funkbook" className="m-0">
                   <FunkbookPanel />
+                </TabsContent>
+
+                <TabsContent value="asteroids" className="m-0">
+                  <AsteroidsPanel />
                 </TabsContent>
 
                 <TabsContent value="messages" className="m-0">
