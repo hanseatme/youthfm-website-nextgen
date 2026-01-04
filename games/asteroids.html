@@ -273,15 +273,15 @@
         let currentState = STATE.menu;
 
         // Physik & Welt Konstanten
-        const CONFIG = {
-            playerSpeed: 400,
-            scrollSpeedBase: 90,
-            scrollSpeedMax: 520,
-            obstacleGapHeight: 220, 
-            gapWidth: 130,
-            playerSize: 20,
-            bulletSpeed: 800,
-            asteroidSpeedAdd: 35,
+         const CONFIG = {
+             playerSpeed: 400,
+             scrollSpeedBase: 90,
+             scrollSpeedMax: 520,
+            obstacleGapHeight: 240, 
+             gapWidth: 130,
+             playerSize: 20,
+             bulletSpeed: 800,
+             asteroidSpeedAdd: 35,
             spawnRates: {
                 asteroid: 0.010,
                 powerup: 0.0025
@@ -954,9 +954,9 @@
                 // HUD can stay visible; game continues in multiplayer
             }
 
-            ensureMultiplayerPlayers() {
-                const roster = network.getRoster();
-                const ids = new Set(roster.map((p) => p.id));
+             ensureMultiplayerPlayers() {
+                 const roster = network.getRoster();
+                 const ids = new Set(roster.map((p) => p.id));
 
                 for (const id of Array.from(this.mpPlayers.keys())) {
                     if (!ids.has(id)) this.mpPlayers.delete(id);
@@ -966,70 +966,70 @@
                 const spacing = 80;
                 for (let idx = 0; idx < roster.length; idx++) {
                     const r = roster[idx];
-                    if (!this.mpPlayers.has(r.id)) {
-                        const offset = (idx - (n - 1) / 2) * spacing;
-                         this.mpPlayers.set(r.id, {
-                             x: canvas.width / 2 + offset,
-                             y: canvas.height - 150,
-                             trail: [],
-                             score: 0,
-                             passedSeg: -1,
-                             color: r.color || '#94a3b8',
+                     if (!this.mpPlayers.has(r.id)) {
+                         const offset = (idx - (n - 1) / 2) * spacing;
+                          this.mpPlayers.set(r.id, {
+                              x: canvas.width / 2 + offset,
+                              y: canvas.height - 150,
+                              targetX: canvas.width / 2 + offset,
+                              targetY: canvas.height - 150,
+                              trail: [],
+                              score: 0,
+                              passedSeg: -1,
+                              color: r.color || '#94a3b8',
                              display_name: r.display_name || null,
                              isDead: false,
                              isInvincible: false,
                              invincibleTimer: 0,
                              moveBoostTimer: 0,
                          });
-                    } else {
-                        const p = this.mpPlayers.get(r.id);
-                        p.color = r.color || p.color;
-                        p.display_name = r.display_name || p.display_name;
-                    }
-                }
-            }
-
-             buildWorldSnapshot() {
-                 return {
-                     t: Date.now(),
-                     viewport: VIEWPORT_SIZE,
-                     levelSeed: this.levelSeed,
-                     scrollY: this.scrollY,
-                     scrollSpeed: this.lastScrollSpeed,
-                     asteroids: this.asteroids.map((a) => ({
-                         x: a.x,
-                         y: a.y,
-                         radius: a.radius,
-                         rotation: a.rotation,
-                         rotSpeed: a.rotSpeed,
-                         seed: a.seed || 0,
-                     })),
-                     powerups: this.powerups.map((p) => ({
-                         x: p.x,
-                         y: p.y,
-                         type: p.type,
-                         radius: p.radius,
-                         pulse: p.pulse,
-                     })),
-                     bullets: this.bullets.map((b) => ({
-                         ownerId: b.ownerId || network.localPlayerId,
-                         x: b.x,
-                         y: b.y,
-                         w: b.w,
-                         h: b.h,
-                     })),
-                     players: Array.from(this.mpPlayers.entries()).map(([id, p]) => ({
-                         id,
-                         x: p.x,
-                         y: p.y,
-                         score: p.score,
-                         isDead: Boolean(p.isDead),
-                         isInvincible: Boolean(p.isInvincible),
-                         color: p.color,
-                         display_name: p.display_name,
-                     })),
-                 };
+                     } else {
+                         const p = this.mpPlayers.get(r.id);
+                         p.color = r.color || p.color;
+                         p.display_name = r.display_name || p.display_name;
+                         if (p.targetX === undefined) p.targetX = p.x;
+                         if (p.targetY === undefined) p.targetY = p.y;
+                     }
+                 }
              }
+
+              buildWorldSnapshot() {
+                  return {
+                      t: Date.now(),
+                      levelSeed: this.levelSeed,
+                      scrollY: this.scrollY,
+                      scrollSpeed: this.lastScrollSpeed,
+                      asteroids: this.asteroids.map((a) => ({
+                          x: Math.round(a.x * 10) / 10,
+                          y: Math.round(a.y * 10) / 10,
+                          radius: a.radius,
+                          rotation: a.rotation,
+                          rotSpeed: a.rotSpeed,
+                          seed: a.seed || 0,
+                      })),
+                      powerups: this.powerups.map((p) => ({
+                          x: Math.round(p.x * 10) / 10,
+                          y: Math.round(p.y * 10) / 10,
+                          type: p.type,
+                          radius: p.radius,
+                      })),
+                      bullets: this.bullets.map((b) => ({
+                          ownerId: b.ownerId || network.localPlayerId,
+                          x: Math.round(b.x * 10) / 10,
+                          y: Math.round(b.y * 10) / 10,
+                      })),
+                      players: Array.from(this.mpPlayers.entries()).map(([id, p]) => ({
+                          id,
+                          x: Math.round(p.x * 10) / 10,
+                          y: Math.round(p.y * 10) / 10,
+                          score: p.score,
+                          isDead: Boolean(p.isDead),
+                          isInvincible: Boolean(p.isInvincible),
+                          color: p.color,
+                          display_name: p.display_name,
+                      })),
+                  };
+              }
 
              applyWorldSnapshot(snapshot) {
                  if (!snapshot) return;
@@ -1067,25 +1067,26 @@
                      });
                  }
 
-                if (Array.isArray(snapshot.powerups)) {
-                    this.powerups = snapshot.powerups.map((p) => ({
-                        x: Number(p.x) || 0,
-                        y: Number(p.y) || 0,
-                        type: p.type || 'speed',
-                        radius: Number(p.radius) || 15,
-                        pulse: Number(p.pulse) || 0,
-                    }));
-                }
+                 if (Array.isArray(snapshot.powerups)) {
+                     const prev = this.powerups || [];
+                     this.powerups = snapshot.powerups.map((p, idx) => ({
+                         x: Number(p.x) || 0,
+                         y: Number(p.y) || 0,
+                         type: p.type || 'speed',
+                         radius: Number(p.radius) || 15,
+                         pulse: Number(prev[idx]?.pulse) || 0,
+                     }));
+                 }
 
-                if (Array.isArray(snapshot.bullets)) {
-                    this.bullets = snapshot.bullets.map((b) => ({
-                        ownerId: b.ownerId || null,
-                        x: Number(b.x) || 0,
-                        y: Number(b.y) || 0,
-                        w: Number(b.w) || 4,
-                        h: Number(b.h) || 15,
-                    }));
-                }
+                 if (Array.isArray(snapshot.bullets)) {
+                     this.bullets = snapshot.bullets.map((b) => ({
+                         ownerId: b.ownerId || null,
+                         x: Number(b.x) || 0,
+                         y: Number(b.y) || 0,
+                         w: 4,
+                         h: 15,
+                     }));
+                 }
 
                  if (Array.isArray(snapshot.players)) {
                      const localId = network.localPlayerId;
@@ -1101,6 +1102,8 @@
                          const next = prev || {
                              x: 0,
                              y: canvas.height - 150,
+                             targetX: 0,
+                             targetY: canvas.height - 150,
                              trail: [],
                              score: 0,
                              passedSeg: -1,
@@ -1111,8 +1114,14 @@
                              invincibleTimer: 0,
                              moveBoostTimer: 0,
                          };
-                         next.x = Number(raw.x) || 0;
-                         next.y = Number(raw.y) || canvas.height - 150;
+                         const rx = Number(raw.x) || 0;
+                         const ry = Number(raw.y) || canvas.height - 150;
+                         next.targetX = rx;
+                         next.targetY = ry;
+                         if (!hadWorld) {
+                             next.x = rx;
+                             next.y = ry;
+                         }
                          next.score = Number(raw.score) || 0;
                          next.color = raw.color || '#94a3b8';
                          next.display_name = raw.display_name || null;
@@ -1142,6 +1151,26 @@
                  // Smooth correction to avoid visible jumps when snapshots arrive late.
                  this.scrollY += drift * Math.min(1, dt * 6);
                  this.lastScrollSpeed = currentScrollSpeed;
+
+                 // Local player prediction (better feel) + smooth correction towards authoritative snapshot.
+                 const localId = network.localPlayerId;
+                 const local = this.mpPlayers.get(localId);
+                 if (local && !local.isDead) {
+                     const moveSpeed = CONFIG.playerSpeed * (local.isInvincible ? 1.5 : 1);
+                     const inputX = this.getInputX();
+                     local.x += inputX * moveSpeed * dt;
+                     if (local.x < CONFIG.playerSize) local.x = CONFIG.playerSize;
+                     if (local.x > canvas.width - CONFIG.playerSize) local.x = canvas.width - CONFIG.playerSize;
+                     local.trail.push({ x: local.x, y: local.y, life: 1.0 });
+                 }
+
+                 const remoteAlpha = Math.min(1, dt * 12);
+                 const localAlpha = Math.min(1, dt * 6);
+                 for (const [id, p] of this.mpPlayers.entries()) {
+                     const alpha = id === localId ? localAlpha : remoteAlpha;
+                     if (typeof p.targetX === 'number') p.x += (p.targetX - p.x) * alpha;
+                     if (typeof p.targetY === 'number') p.y += (p.targetY - p.y) * alpha;
+                 }
 
                  // Lightweight local animation only (authoritative state still comes from the host snapshot).
                  for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -1367,13 +1396,13 @@
                     }
                 }
 
-                // broadcast world snapshot (host)
-                const now = performance.now();
-                if (now - this.lastWorldBroadcastAt > 80) {
-                    this.lastWorldBroadcastAt = now;
-                    network.broadcastWorld(this.buildWorldSnapshot());
-                }
-            }
+                 // broadcast world snapshot (host)
+                 const now = performance.now();
+                 if (now - this.lastWorldBroadcastAt > 120) {
+                     this.lastWorldBroadcastAt = now;
+                     network.broadcastWorld(this.buildWorldSnapshot());
+                 }
+             }
 
             updateSingle(dt) {
                 if (this.isInvincible) {
