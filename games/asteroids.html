@@ -658,7 +658,7 @@
                  // Multiplayer
                  this.mpPlayers = new Map(); // id -> {x,y,trail,score,color,display_name,isDead,isInvincible,invincibleTimer,moveBoostTimer}
                 this.mpInputs = new Map(); // id -> moveX (fallback / local)
-                this.mpRemoteInput = new Map(); // id -> {moveX,x,ts} (client-authoritative x)
+                this.mpRemoteInput = new Map(); // id -> {moveX,x,receivedAtPerf} (client-authoritative x)
                 this.mpShootQueue = []; // [{id,x,shotId,ts}]
                 this.localShotSeq = 0;
                 this.predictedBullets = new Map(); // shotId -> bullet
@@ -1077,12 +1077,12 @@
                  if (!id) return;
                  const moveX = Math.max(-1, Math.min(1, Number(payload.moveX) || 0));
                  const x = payload && typeof payload.x === 'number' ? payload.x : NaN;
-                 const ts = payload && typeof payload.ts === 'number' ? payload.ts : NaN;
+                 const receivedAtPerf = performance.now();
                  this.mpInputs.set(id, moveX);
                  if (Number.isFinite(x)) {
-                     this.mpRemoteInput.set(id, { moveX, x, ts: Number.isFinite(ts) ? ts : Date.now() });
+                     this.mpRemoteInput.set(id, { moveX, x, receivedAtPerf });
                  } else {
-                     this.mpRemoteInput.set(id, { moveX, x: null, ts: Number.isFinite(ts) ? ts : Date.now() });
+                     this.mpRemoteInput.set(id, { moveX, x: null, receivedAtPerf });
                  }
              }
 
@@ -1132,21 +1132,22 @@
                      if (!this.mpPlayers.has(r.id)) {
                          const offset = (idx - (n - 1) / 2) * spacing;
                           this.mpPlayers.set(r.id, {
-                              x: canvas.width / 2 + offset,
-                              y: canvas.height - 150,
-                              targetX: canvas.width / 2 + offset,
-                              targetY: canvas.height - 150,
-                              trail: [],
-                              score: 0,
-                              passedSeg: -1,
-                              color: r.color || '#94a3b8',
-                             display_name: r.display_name || null,
-                             isDead: false,
-                               isInvincible: false,
-                               invincibleTimer: 0,
-                               moveBoostTimer: 0,
-                               boostType: null,
-                               boostExpiresAt: 0,
+                               x: canvas.width / 2 + offset,
+                               y: canvas.height - 150,
+                               targetX: canvas.width / 2 + offset,
+                               targetY: canvas.height - 150,
+                               trail: [],
+                               score: 0,
+                               passedSeg: -1,
+                               color: r.color || '#94a3b8',
+                              display_name: r.display_name || null,
+                              isDead: false,
+                              isInvincible: false,
+                              invincibleTimer: 0,
+                              moveBoostTimer: 0,
+                              boostType: null,
+                              boostExpiresAt: 0,
+                              obstacleContactTimer: 0,
                           });
                       } else {
                           const p = this.mpPlayers.get(r.id);
@@ -1312,6 +1313,7 @@
                               moveBoostTimer: 0,
                               boostType: null,
                               boostExpiresAt: 0,
+                              obstacleContactTimer: 0,
                           };
                          const rx = Number(raw.x) || 0;
                          const ry = Number(raw.y) || canvas.height - 150;
@@ -1510,9 +1512,9 @@
                         p.x += moveX * moveSpeed * dt;
                     } else {
                         const remote = this.mpRemoteInput.get(id);
-                        if (remote && Number.isFinite(remote.x)) {
-                            const now = Date.now();
-                            const ageMs = Math.max(0, Math.min(250, now - (Number(remote.ts) || now)));
+                        if (remote && typeof remote.x === 'number' && Number.isFinite(remote.x)) {
+                            const nowPerf = performance.now();
+                            const ageMs = Math.max(0, Math.min(120, nowPerf - (Number(remote.receivedAtPerf) || nowPerf)));
                             const predicted = Number(remote.x) + (Number(remote.moveX) || 0) * moveSpeed * (ageMs / 1000);
                             p.x = predicted;
                         } else {
@@ -1568,35 +1570,52 @@
                  // obstacles (deterministic level) + collision per player
                  const obstacles = this.getVisibleObstacles();
                  const r = CONFIG.playerSize / 2;
+                 const obstacleTolerance = 10; // helps avoid one-frame desync deaths in multiplayer
 
                  for (const [id, p] of this.mpPlayers.entries()) {
-                     if (p.isDead) continue;
-                     const passedMax = Math.floor((this.scrollY - (p.y + r)) / CONFIG.obstacleGapHeight) - 1;
-                     if (passedMax > (p.passedSeg ?? -1)) {
-                         p.score += passedMax - (p.passedSeg ?? -1);
-                         p.passedSeg = passedMax;
-                         if (id === network.localPlayerId) scoreDisplay.innerText = String(p.score);
-                     }
-                 }
+                      if (p.isDead) continue;
+                      p._hitObstacleThisFrame = false;
+                      const passedMax = Math.floor((this.scrollY - (p.y + r)) / CONFIG.obstacleGapHeight) - 1;
+                      if (passedMax > (p.passedSeg ?? -1)) {
+                          p.score += passedMax - (p.passedSeg ?? -1);
+                          p.passedSeg = passedMax;
+                          if (id === network.localPlayerId) scoreDisplay.innerText = String(p.score);
+                      }
+                  }
 
-                 for (const obs of obstacles) {
-                     for (const p of this.mpPlayers.values()) {
-                         if (p.isDead) continue;
+                  for (const obs of obstacles) {
+                      for (const p of this.mpPlayers.values()) {
+                          if (p.isDead) continue;
 
-                         if (p.y + r > obs.y && p.y - r < obs.y + obs.h) {
-                             const gapLeft = obs.gapX - obs.gapWidth / 2;
-                             const gapRight = obs.gapX + obs.gapWidth / 2;
+                          if (p.y + r > obs.y && p.y - r < obs.y + obs.h) {
+                              const gapLeft = obs.gapX - obs.gapWidth / 2;
+                              const gapRight = obs.gapX + obs.gapWidth / 2;
 
-                             if (p.x - r < gapLeft || p.x + r > gapRight) {
-                                 if (p.isInvincible) {
-                                     this.explode(p.x, obs.y, obs.color, 10);
-                                 } else {
-                                     p.isDead = true;
-                                 }
-                             }
-                         }
-                     }
-                 }
+                              if (p.x - r < (gapLeft - obstacleTolerance) || p.x + r > (gapRight + obstacleTolerance)) {
+                                  if (p.isInvincible) {
+                                      this.explode(p.x, obs.y, obs.color, 10);
+                                  } else {
+                                      p._hitObstacleThisFrame = true;
+                                  }
+                              }
+                          }
+                      }
+                  }
+
+                  // Apply a short grace period before killing the player to avoid false positives from latency.
+                  for (const p of this.mpPlayers.values()) {
+                      if (p.isDead) continue;
+                      if (p._hitObstacleThisFrame) {
+                          p.obstacleContactTimer = Number(p.obstacleContactTimer) || 0;
+                          p.obstacleContactTimer += dt;
+                          if (p.obstacleContactTimer > 0.12) {
+                              p.isDead = true;
+                          }
+                      } else {
+                          p.obstacleContactTimer = 0;
+                      }
+                      p._hitObstacleThisFrame = false;
+                  }
 
                 // asteroids collision
                 for (let i = this.asteroids.length - 1; i >= 0; i--) {
