@@ -140,10 +140,9 @@ export class RoomManager {
       return false;
     }
 
-    // Check if game already running
+    // Allow late joins even if a round is running to avoid desync when players connect slightly later.
     if (room.state.status === 'running' && !isReconnect && !isKnownPlayer) {
-      log.warn(`Game already running in room ${roomId}, rejecting player ${playerId}`);
-      return false;
+      log.info(`Late join allowed for player ${playerId} in room ${roomId}`);
     }
 
     // If a previous match finished, return to lobby to allow starting a new round.

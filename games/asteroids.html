@@ -456,10 +456,28 @@
                 this.pingIntervalId = null;
                 this.pingIntervalMs = 15000;
                 this.manualClose = false;
-                this.pendingStart = false;
+                this.pendingStart = null;
+                this.lastPlayerCount = 0;
+                this.roundNumber = null;
+                this.startTimeoutMs = 7000;
             }
 
             connect(url, roomId, token, roundNumber = 1) {
+                const nextRound = Math.max(1, Number(roundNumber) || 1);
+                const sameTarget =
+                    this.url === url &&
+                    this.roomId === roomId &&
+                    this.token === token &&
+                    this.roundNumber === nextRound;
+
+                if (
+                    sameTarget &&
+                    this.ws &&
+                    (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+                ) {
+                    return;
+                }
+
                 if (this.ws) {
                     this.disconnect();
                 }
@@ -467,9 +485,11 @@
                 this.url = url;
                 this.token = token;
                 this.roomId = roomId;
+                this.roundNumber = nextRound;
                 this.manualClose = false;
+                this.lastPlayerCount = 0;
 
-                const wsUrl = `${url}/ws?room=${encodeURIComponent(roomId)}&token=${encodeURIComponent(token)}&round=${roundNumber}`;
+                const wsUrl = `${url}/ws?room=${encodeURIComponent(roomId)}&token=${encodeURIComponent(token)}&round=${nextRound}`;
 
                 try {
                     this.ws = new WebSocket(wsUrl);
@@ -481,11 +501,7 @@
                         this.reconnectAttempts = 0;
                         if (this.pingIntervalId) clearInterval(this.pingIntervalId);
                         this.pingIntervalId = setInterval(() => this.sendPing(), this.pingIntervalMs);
-
-                        if (this.pendingStart) {
-                            this.pendingStart = false;
-                            this.sendStart();
-                        }
+                        this.tryStart();
                         if (this.onConnectedCallback) this.onConnectedCallback();
                     };
 
@@ -526,7 +542,7 @@
                     this.manualClose = true;
                     if (this.pingIntervalId) clearInterval(this.pingIntervalId);
                     this.pingIntervalId = null;
-                    this.pendingStart = false;
+                    this.pendingStart = null;
                     this.ws.close(1000, 'Client disconnect');
                     this.ws = null;
                 }
@@ -552,6 +568,12 @@
                     switch (message.type) {
                         case 'state':
                             console.log('[GameServer] State update received, players:', message.payload?.players?.length);
+                            if (message.payload) {
+                                this.lastPlayerCount = Array.isArray(message.payload.players)
+                                    ? message.payload.players.length
+                                    : 0;
+                                this.tryStart();
+                            }
                             if (this.onStateCallback && message.payload) {
                                 this.onStateCallback(message.payload);
                             }
@@ -657,12 +679,30 @@
                 }
             }
 
-            sendStart() {
-                if (!this.connected || !this.ws) {
-                    this.pendingStart = true;
-                    return;
-                }
+            sendStart(expectedPlayers = null) {
+                const desired = Number(expectedPlayers);
+                const count = Number.isFinite(desired) ? Math.max(1, Math.min(4, desired)) : 1;
+                this.pendingStart = { expectedPlayers: count, requestedAt: performance.now() };
+                this.tryStart();
+            }
 
+            tryStart() {
+                if (!this.pendingStart) return;
+                if (!this.connected || !this.ws) return;
+
+                const expectedPlayers = Math.max(1, Number(this.pendingStart.expectedPlayers) || 1);
+                const waitMs = performance.now() - Number(this.pendingStart.requestedAt || 0);
+                const enoughPlayers = this.lastPlayerCount >= expectedPlayers;
+                const timedOut = waitMs >= this.startTimeoutMs;
+
+                if (!enoughPlayers && !timedOut) return;
+
+                this.pendingStart = null;
+                this.sendStartNow();
+            }
+
+            sendStartNow() {
+                if (!this.connected || !this.ws) return;
                 console.log('[GameServer] Sending start request');
                 const message = { type: 'start' };
                 try {
@@ -792,7 +832,7 @@
              if (status === 'running') {
                  setMultiplayerOverlayVisible(false);
                  // Ensure the game view is active if we joined mid-match.
-                 if (currentState === STATE.menu) startGame(true);
+                 if (currentState === STATE.menu && network.role !== 'gameserver') startGame(true);
                  return;
              }
 
@@ -2784,17 +2824,23 @@
                  }
              }
 
-             if (data.type === 'start') {
-                 // If connected to game server, send start signal
-                 if (network.role === 'gameserver') {
-                     const isHost = roomState?.room?.host_id === network.localPlayerId;
-                     if (isHost) {
-                         gameServer.sendStart();
-                     }
-                     return;
-                 }
-                 startGame(Boolean(data.payload?.simulate));
-             }
+            if (data.type === 'start') {
+                // If connected to game server, send start signal
+                if (network.role === 'gameserver') {
+                    const isHost = roomState?.room?.host_id === network.localPlayerId;
+                    if (isHost) {
+                        const expectedPlayers =
+                            Number(data.payload?.expectedPlayers) ||
+                            Number(roomState?.player_count) ||
+                            Number(roomState?.room?.player_count) ||
+                            network.getRoster().length ||
+                            1;
+                        gameServer.sendStart(expectedPlayers);
+                    }
+                    return;
+                }
+                startGame(Boolean(data.payload?.simulate));
+            }
 
              if (data.type === 'reset') {
                  uiGameOver.classList.add('hidden');

@@ -809,7 +809,7 @@ export function AsteroidsPanel() {
         // ignore
       }
       sendToGame('reset')
-      sendToGame('start', { simulate: true })
+      sendToGame('start', { simulate: true, expectedPlayers: playerCount })
     },
     onError: (err: any) => {
       console.error(err)
@@ -909,7 +909,7 @@ export function AsteroidsPanel() {
       } catch {
         // ignore
       }
-      sendToGame('start', { simulate: true })
+      sendToGame('start', { simulate: true, expectedPlayers: playerCount })
     },
     onError: (err: any) => {
       console.error(err)
@@ -973,7 +973,7 @@ export function AsteroidsPanel() {
       .on('broadcast', { event: 'start' }, () => {
         setRemoteStates({})
         sendToGame('reset')
-        sendToGame('start', { simulate: true })
+        sendToGame('start', { simulate: true, expectedPlayers: playerCount })
         setRoom((prev) => (prev ? { ...prev, status: 'running' } : prev))
       })
       .on(
