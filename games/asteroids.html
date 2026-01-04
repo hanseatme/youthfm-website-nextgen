@@ -199,17 +199,22 @@
             <div id="mp-hint" class="mt-4 text-xs text-gray-500"></div>
         </div>
 
-        <!-- HUD -->
-        <div id="hud" class="hidden absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none">
-            <div class="text-left">
-                <div class="text-xs text-gray-400">SCORE</div>
-                <div id="score-display" class="text-2xl font-bold text-cyan-400">0</div>
-            </div>
-            
-            <!-- Powerup Status -->
-            <div id="powerup-status" class="hidden absolute top-16 left-1/2 transform -translate-x-1/2 text-center">
-                <div class="text-yellow-400 font-bold text-xl neon-text">NITRO BOOST!</div>
-            </div>
+         <!-- HUD -->
+         <div id="hud" class="hidden absolute top-0 left-0 w-full p-4 flex justify-between items-start pointer-events-none">
+             <div class="text-left">
+                 <div class="text-xs text-gray-400">SCORE</div>
+                 <div id="score-display" class="text-2xl font-bold text-cyan-400">0</div>
+             </div>
+
+             <!-- Spectator Banner (Multiplayer: when you are dead, you keep watching) -->
+             <div id="spectator-banner" class="hidden absolute top-16 left-1/2 transform -translate-x-1/2 ui-panel px-4 py-2 rounded-full text-sm text-gray-200">
+                 GAME OVER – Zuschauen…
+             </div>
+             
+             <!-- Powerup Status -->
+             <div id="powerup-status" class="hidden absolute top-16 left-1/2 transform -translate-x-1/2 text-center">
+                 <div class="text-yellow-400 font-bold text-xl neon-text">NITRO BOOST!</div>
+             </div>
 
             <div class="text-right">
                 <div class="text-xs text-gray-400">STATUS</div>
@@ -249,12 +254,13 @@
          const uiMultiplayerSubtitle = document.getElementById('mp-subtitle');
          const uiMultiplayerActions = document.getElementById('mp-actions');
          const uiMultiplayerHint = document.getElementById('mp-hint');
-        const uiHud = document.getElementById('hud');
-        const scoreDisplay = document.getElementById('score-display');
-        const finalScoreDisplay = document.getElementById('final-score');
-        const statusDisplay = document.getElementById('connection-status');
-        const mobileControls = document.getElementById('mobile-controls');
-        const powerupStatus = document.getElementById('powerup-status');
+         const uiHud = document.getElementById('hud');
+         const scoreDisplay = document.getElementById('score-display');
+         const finalScoreDisplay = document.getElementById('final-score');
+         const statusDisplay = document.getElementById('connection-status');
+         const mobileControls = document.getElementById('mobile-controls');
+         const powerupStatus = document.getElementById('powerup-status');
+         const spectatorBanner = document.getElementById('spectator-banner');
         
         // Joystick Elements
         const joystickZone = document.getElementById('joystick-zone');
@@ -347,9 +353,9 @@
                 postToParent({ type: "gameOver", payload: { score } });
             }
 
-            broadcastInput(moveX) {
-                postToParent({ type: "input", payload: { moveX } });
-            }
+             broadcastInput(moveX) {
+                 postToParent({ type: "input", payload: { moveX } });
+             }
 
             broadcastShoot() {
                 postToParent({ type: "shoot", payload: {} });
@@ -619,11 +625,11 @@
                 this.mpShootQueue = new Set(); // ids that requested a shot
                 this.mpElapsed = 0;
                  this.mpHasWorld = false;
-                this.mpLocalDeadShown = false;
-                this.mpWorldTime = 0;
-                this.lastInputBroadcastAt = 0;
-                this.lastWorldBroadcastAt = 0;
-            }
+                 this.mpLocalDeadShown = false;
+                 this.mpWorldTime = 0;
+                 this.lastInputBroadcastAt = 0;
+                 this.lastWorldBroadcastAt = 0;
+             }
 
             init() {
                 this.resize();
@@ -685,9 +691,11 @@
                 this.mpElapsed = 0;
                 this.mpHasWorld = false;
                 this.mpLocalDeadShown = false;
-                this.mpWorldTime = 0;
-                this.lastInputBroadcastAt = 0;
-                this.lastWorldBroadcastAt = 0;
+                 this.mpWorldTime = 0;
+                 this.lastInputBroadcastAt = 0;
+                 this.lastWorldBroadcastAt = 0;
+
+                 if (spectatorBanner) spectatorBanner.classList.add('hidden');
                 
                 // Inputs reset
                 this.keys.left = false;
@@ -926,12 +934,12 @@
                 return inputX;
             }
 
-            broadcastMultiplayerInput() {
-                const now = performance.now();
-                if (now - this.lastInputBroadcastAt < 50) return;
-                this.lastInputBroadcastAt = now;
-                network.broadcastInput(this.getInputX());
-            }
+             broadcastMultiplayerInput() {
+                 const now = performance.now();
+                 if (now - this.lastInputBroadcastAt < 33) return;
+                 this.lastInputBroadcastAt = now;
+                 network.broadcastInput(this.getInputX());
+             }
 
             setRemoteInput(payload) {
                 const id = payload && payload.id ? String(payload.id) : null;
@@ -946,13 +954,22 @@
                 this.mpShootQueue.add(id);
             }
 
-            showLocalGameOver(score) {
-                if (this.mpLocalDeadShown) return;
-                this.mpLocalDeadShown = true;
-                finalScoreDisplay.innerText = score;
-                uiGameOver.classList.remove('hidden');
-                // HUD can stay visible; game continues in multiplayer
-            }
+             showLocalGameOver(score) {
+                 if (this.mpLocalDeadShown) return;
+                 this.mpLocalDeadShown = true;
+
+                 // Multiplayer: do not block the view; keep watching other players until everyone is dead.
+                 if (network.role === 'host' || network.role === 'client') {
+                     if (spectatorBanner) {
+                         spectatorBanner.textContent = `GAME OVER – Zuschauen… (Score: ${score})`;
+                         spectatorBanner.classList.remove('hidden');
+                     }
+                     return;
+                 }
+
+                 finalScoreDisplay.innerText = score;
+                 uiGameOver.classList.remove('hidden');
+             }
 
              ensureMultiplayerPlayers() {
                  const roster = network.getRoster();
@@ -1173,11 +1190,9 @@
                  for (const [id, p] of this.mpPlayers.entries()) {
                      if (typeof p.targetX === 'number') {
                          if (id === localId) {
+                             // Keep local controls primary; only hard-correct on extreme divergence.
                              const err = p.targetX - p.x;
-                             // Keep local controls primary; only correct if we drift too far.
-                             if (Math.abs(err) > 36) {
-                                 p.x += err * Math.min(1, dt * 4);
-                             }
+                             if (Math.abs(err) > 180) p.x += err * Math.min(1, dt * 2);
                          } else {
                              p.x += (p.targetX - p.x) * remoteAlpha;
                          }
@@ -1423,7 +1438,7 @@
 
                  // broadcast world snapshot (host)
                  const now = performance.now();
-                 if (now - this.lastWorldBroadcastAt > 120) {
+                 if (now - this.lastWorldBroadcastAt > 80) {
                      this.lastWorldBroadcastAt = now;
                      network.broadcastWorld(this.buildWorldSnapshot());
                  }
@@ -1893,12 +1908,13 @@
             currentState = STATE.menu;
         });
 
-        function startGame(simulateMultiplayer) {
-            uiMainMenu.classList.add('hidden');
-            uiHud.classList.remove('hidden');
-            game.reset();
-            currentState = STATE.playing;
-            game.resize();
+         function startGame(simulateMultiplayer) {
+             uiMainMenu.classList.add('hidden');
+             uiHud.classList.remove('hidden');
+             game.reset();
+             currentState = STATE.playing;
+             game.resize();
+             if (spectatorBanner) spectatorBanner.classList.add('hidden');
 
             if (network.role === 'host' || network.role === 'client' || simulateMultiplayer) {
                 statusDisplay.innerText = "ONLINE (MULTI)";
@@ -1971,13 +1987,13 @@
                 startGame(Boolean(data.payload?.simulate));
             }
 
-            if (data.type === 'reset') {
-                uiGameOver.classList.add('hidden');
-                uiHud.classList.add('hidden');
-                uiMainMenu.classList.remove('hidden');
-                currentState = STATE.menu;
-                game.reset();
-            }
+             if (data.type === 'reset') {
+                 uiGameOver.classList.add('hidden');
+                 uiHud.classList.add('hidden');
+                 uiMainMenu.classList.remove('hidden');
+                 currentState = STATE.menu;
+                 game.reset();
+             }
         });
 
         postToParent({ type: "ready" });

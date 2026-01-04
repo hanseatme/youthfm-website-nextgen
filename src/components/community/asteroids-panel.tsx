@@ -198,7 +198,7 @@ export function AsteroidsPanel() {
         const moveX = Number(payload.moveX) || 0
 
         const now = Date.now()
-        if (now - inputThrottleRef.current < 66) return
+        if (now - inputThrottleRef.current < 33) return
         inputThrottleRef.current = now
 
         channelRef.current
@@ -230,7 +230,7 @@ export function AsteroidsPanel() {
       if (data.type === 'world') {
         if (mode !== 'multi' || !room || room.host_id !== user?.id || !channelRef.current) return
         const now = Date.now()
-        if (now - worldThrottleRef.current < 120) return
+        if (now - worldThrottleRef.current < 80) return
         worldThrottleRef.current = now
 
         if (data.payload?.players && Array.isArray(data.payload.players)) {
