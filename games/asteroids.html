@@ -976,22 +976,31 @@
                 return inputX;
             }
 
-              broadcastMultiplayerInput() {
-                  const now = performance.now();
-                  if (now - this.lastInputBroadcastAt < 50) return;
-                  this.lastInputBroadcastAt = now;
-                  const local = this.mpPlayers.get(network.localPlayerId);
-                  const x = local ? local.x : (canvas.width / 2);
+               broadcastMultiplayerInput() {
+                   const local = this.mpPlayers.get(network.localPlayerId);
+                   const x = local ? local.x : (canvas.width / 2);
+                   const moveX = this.getInputX();
 
-                  const moveX = this.getInputX();
-                  const xDelta = Math.abs((this.lastBroadcastX ?? x) - x);
-                  const moveDelta = Math.abs((this.lastBroadcastMoveX ?? moveX) - moveX);
-                  if (xDelta < 0.75 && moveDelta < 0.03) return;
+                   // Always send once so the host has an initial client-authoritative position.
+                   if (this.lastBroadcastX == null || this.lastBroadcastMoveX == null) {
+                       this.lastBroadcastX = x;
+                       this.lastBroadcastMoveX = moveX;
+                       this.lastInputBroadcastAt = performance.now();
+                       network.broadcastInput(moveX, x, Date.now());
+                       return;
+                   }
 
-                  this.lastBroadcastX = x;
-                  this.lastBroadcastMoveX = moveX;
-                  network.broadcastInput(moveX, x, Date.now());
-              }
+                   const xDelta = Math.abs(this.lastBroadcastX - x);
+                   const moveDelta = Math.abs(this.lastBroadcastMoveX - moveX);
+                   if (xDelta < 0.75 && moveDelta < 0.03) return;
+
+                   const now = performance.now();
+                   if (now - this.lastInputBroadcastAt < 50) return;
+                   this.lastInputBroadcastAt = now;
+                   this.lastBroadcastX = x;
+                   this.lastBroadcastMoveX = moveX;
+                   network.broadcastInput(moveX, x, Date.now());
+               }
 
              setRemoteInput(payload) {
                  const id = payload && payload.id ? String(payload.id) : null;
@@ -1301,11 +1310,12 @@
                          if (id === localId) {
                              // Keep local controls primary; only hard-correct on extreme divergence.
                              const err = p.targetX - p.x;
-                             if (Math.abs(err) > 180) p.x += err * Math.min(1, dt * 2);
-                         } else {
-                             p.x += (p.targetX - p.x) * remoteAlpha;
-                         }
-                     }
+                              // Local ship is client-authoritative; only correct if wildly out of sync.
+                              if (Math.abs(err) > 500) p.x += err * Math.min(1, dt * 2);
+                          } else {
+                              p.x += (p.targetX - p.x) * remoteAlpha;
+                          }
+                      }
                      if (typeof p.targetY === 'number') {
                          const alphaY = id === localId ? localAlphaY : remoteAlpha;
                          p.y += (p.targetY - p.y) * alphaY;
