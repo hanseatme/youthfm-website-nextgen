@@ -3,7 +3,7 @@
 import { Link } from '@/i18n/navigation'
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
-import { Menu, User, LogOut, Settings, Crown } from 'lucide-react'
+import { Menu, User, LogOut, Settings, Crown, MessagesSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -31,7 +31,8 @@ export function Header() {
     { href: '/', label: t('home') },
     { href: '/top-songs', label: t('topSongs') },
     { href: '/community', label: t('community') },
-    { href: '/leaderboard', label: t('leaderboard') },
+    { href: '/community?tab=messages', label: t('messages') },
+    { href: '/community?tab=leaderboard', label: t('leaderboard') },
     { href: '/shop', label: t('shop') },
   ]
 
@@ -125,6 +126,12 @@ export function Header() {
                   <Link href="/settings" className="cursor-pointer">
                     <Settings className="mr-2 h-4 w-4" />
                     {t('settings')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/community?tab=messages" className="cursor-pointer">
+                    <MessagesSquare className="mr-2 h-4 w-4" />
+                    {t('messages')}
                   </Link>
                 </DropdownMenuItem>
                 {profile?.is_admin && (

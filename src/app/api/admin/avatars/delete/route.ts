@@ -41,11 +41,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Avatar ID required' }, { status: 400 })
     }
 
+    const avatarIdNum = Number(avatarId)
+    if (!Number.isFinite(avatarIdNum)) {
+      return NextResponse.json({ error: 'Invalid avatar ID' }, { status: 400 })
+    }
+
     // Get avatar info
     const { data: avatar, error: fetchError } = await supabase
       .from('avatars')
       .select('file_path')
-      .eq('id', avatarId)
+      .eq('id', avatarIdNum)
       .single()
 
     if (fetchError || !avatar) {
@@ -56,7 +61,7 @@ export async function DELETE(request: NextRequest) {
     const { count } = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })
-      .eq('avatar_id', avatarId)
+      .eq('avatar_id', avatarIdNum)
 
     if (count && count > 0) {
       return NextResponse.json({
@@ -77,7 +82,7 @@ export async function DELETE(request: NextRequest) {
     const { error: deleteError } = await supabase
       .from('avatars')
       .delete()
-      .eq('id', avatarId)
+      .eq('id', avatarIdNum)
 
     if (deleteError) {
       console.error('Database delete error:', deleteError)

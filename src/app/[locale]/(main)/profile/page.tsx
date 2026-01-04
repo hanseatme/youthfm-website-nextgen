@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { setRequestLocale } from 'next-intl/server'
 import { getTranslations } from 'next-intl/server'
+import type { ReactNode } from 'react'
 import { Sparkles, Flame, Calendar, MapPin, Edit, Award, MessageSquare, Swords, ThumbsUp, Flame as FlameIcon, Meh, ThumbsDown, SkipForward } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Tables } from '@/types/database'
 import { Link } from '@/i18n/navigation'
 import { AvatarDisplay } from '@/components/profile/avatar-display'
+import { FunkbookCards } from '@/components/profile/funkbook-cards'
 
 interface ProfilePageProps {
   params: Promise<{ locale: string }>
@@ -74,6 +76,65 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       .limit(20),
   ])
 
+  const [
+    { data: recentChatMessages },
+    { data: recentDuelVotes },
+    { data: recentVibesTransactions },
+  ] = await Promise.all([
+    supabase
+      .from('chat_messages')
+      .select('id, content, created_at, channel')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(15),
+    supabase
+      .from('duel_votes')
+      .select(`
+        id,
+        created_at,
+        vote_choice,
+        duels:duel_id(
+          id,
+          prompt,
+          song_a:songs!duels_song_a_id_fkey(title, artist),
+          song_b:songs!duels_song_b_id_fkey(title, artist)
+        )
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(15),
+    supabase
+      .from('vibes_transactions')
+      .select('id, amount, reason, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(15),
+  ])
+
+  const { data: funkbookCardsData } = await supabase
+    .from('vibe_postcards')
+    .select('id, date, slot, note, visibility, energy_level, situation, mood_tags, activity_tags, style, songs(title, artist, preview_url, track_id)')
+    .eq('user_id', user.id)
+    .neq('status', 'deleted')
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  const funkbookCards = (funkbookCardsData || []) as unknown as Array<{
+    id: string
+    date: string
+    slot: number | null
+    note: string
+    visibility: string
+    energy_level: number | null
+    situation: string | null
+    mood_tags: string[] | null
+    activity_tags: string[] | null
+    style: unknown
+    songs: { title: string; artist: string | null; preview_url: string | null; track_id: number | null } | null
+  }>
+
   type BadgeJoin = {
     unlocked_at: string
     badges: {
@@ -119,6 +180,89 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         return <ThumbsUp className="h-4 w-4 text-muted-foreground" />
     }
   }
+
+  type ActivityItem = {
+    id: string
+    created_at: string
+    icon: ReactNode
+    title: string
+    description?: string
+  }
+
+  const activityItems: ActivityItem[] = []
+
+  for (const row of recentChatMessages || []) {
+    const msg = row as unknown as { id: string; content: string; created_at: string; channel: string }
+    activityItems.push({
+      id: `chat:${msg.id}`,
+      created_at: msg.created_at,
+      icon: <MessageSquare className="h-4 w-4 text-muted-foreground" />,
+      title: locale === 'de'
+        ? (msg.channel === 'theme' ? 'Beitrag im Tagesthema' : msg.channel === 'duel' ? 'Beitrag im Duell-Chat' : 'Beitrag im Community-Chat')
+        : (msg.channel === 'theme' ? 'Post in theme discussion' : msg.channel === 'duel' ? 'Post in duel chat' : 'Post in community chat'),
+      description: msg.content,
+    })
+  }
+
+  for (const entry of feedbackHistory || []) {
+    const row = entry as unknown as {
+      id: string
+      reaction: number
+      created_at: string
+      songs: { title: string; artist: string | null } | null
+    }
+    activityItems.push({
+      id: `feedback:${row.id}`,
+      created_at: row.created_at,
+      icon: reactionIcon(row.reaction),
+      title: locale === 'de' ? 'Song bewertet' : 'Rated a song',
+      description: `${row.songs?.artist ? `${row.songs.artist} – ` : ''}${row.songs?.title || (locale === 'de' ? 'Unbekannter Song' : 'Unknown song')}`,
+    })
+  }
+
+  for (const row of userBadges) {
+    if (!row.badges) continue
+    activityItems.push({
+      id: `badge:${row.badges.id}`,
+      created_at: row.unlocked_at,
+      icon: <span className="text-base leading-none">{row.badges.icon}</span>,
+      title: locale === 'de' ? 'Badge freigeschaltet' : 'Badge unlocked',
+      description: locale === 'en' && row.badges.name_en ? row.badges.name_en : row.badges.name,
+    })
+  }
+
+  for (const row of recentDuelVotes || []) {
+    const vote = row as unknown as {
+      id: string
+      created_at: string
+      vote_choice: 'a' | 'b'
+      duels: { song_a: { title: string; artist: string | null } | null; song_b: { title: string; artist: string | null } | null } | null
+    }
+    const a = vote.duels?.song_a ? `${vote.duels.song_a.artist ? `${vote.duels.song_a.artist} – ` : ''}${vote.duels.song_a.title}` : null
+    const b = vote.duels?.song_b ? `${vote.duels.song_b.artist ? `${vote.duels.song_b.artist} – ` : ''}${vote.duels.song_b.title}` : null
+    activityItems.push({
+      id: `duel:${vote.id}`,
+      created_at: vote.created_at,
+      icon: <Swords className="h-4 w-4 text-primary" />,
+      title: locale === 'de' ? 'Im Duell abgestimmt' : 'Voted in a duel',
+      description: a && b ? (vote.vote_choice === 'a' ? `A: ${a}` : `B: ${b}`) : undefined,
+    })
+  }
+
+  for (const row of recentVibesTransactions || []) {
+    const tx = row as unknown as { id: string; amount: number; reason: string; created_at: string }
+    activityItems.push({
+      id: `vibes:${tx.id}`,
+      created_at: tx.created_at,
+      icon: <Sparkles className="h-4 w-4 text-primary" />,
+      title: locale === 'de' ? 'Vibes' : 'Vibes',
+      description: `${tx.amount > 0 ? '+' : ''}${tx.amount} • ${tx.reason}`,
+    })
+  }
+
+  const recentActivity = activityItems
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5)
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US', {
@@ -321,7 +465,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
             ) : (
               <div className="space-y-3">
                 {(feedbackHistory || []).map((entry) => {
-                  const row = entry as {
+                  const row = entry as unknown as {
                     id: string
                     reaction: number
                     created_at: string
@@ -368,7 +512,49 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
             </div>
           </div>
 
+          <div className="md:col-span-2">
+            <FunkbookCards
+              locale={locale}
+              cards={funkbookCards.filter((c) => c.visibility === 'public')}
+              title={locale === 'de' ? 'Dein Funkbuch (öffentlich)' : 'Your Funkbook (public)'}
+              subtitle={locale === 'de' ? 'So sieht dein Profil-Funkbuch für andere aus.' : 'How your Funkbook appears to others.'}
+            />
+          </div>
+
           {/* Streak Progress */}
+          <div className="glass-card rounded-3xl p-6 md:col-span-2">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold">
+                {locale === 'de' ? 'Aktivität' : 'Activity'}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {locale === 'de' ? 'Deine letzten Aktionen (nur für dich sichtbar)' : 'Your latest actions (visible only to you)'}
+              </p>
+            </div>
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {locale === 'de' ? 'Noch keine Aktivitäten.' : 'No activity yet.'}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {recentActivity.map((item) => (
+                  <div key={item.id} className="flex items-start gap-3 rounded-xl border border-border/50 px-3 py-2">
+                    <div className="mt-0.5">{item.icon}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{item.title}</p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(item.created_at).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {profile.streak_current > 0 && (
             <div className="glass-card rounded-3xl p-6">
               <h2 className="text-xl font-semibold flex items-center gap-2 mb-4">

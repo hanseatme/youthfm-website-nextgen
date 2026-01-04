@@ -7,6 +7,20 @@ interface HomePageProps {
   params: Promise<{ locale: string }>
 }
 
+type ActiveDuel = {
+  id: string
+  song_a: { id: string; title: string; artist: string; track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null
+  song_b: { id: string; title: string; artist: string; track_id?: number | null; preview_url?: string | null; external_id?: string | null } | null
+  prompt?: string | null
+  option_a_text?: string | null
+  option_b_text?: string | null
+  votes_a: number
+  votes_b: number
+  started_at: string | null
+  ended_at: string | null
+  status: string
+} | null
+
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params
   setRequestLocale(locale)
@@ -44,7 +58,7 @@ export default async function HomePage({ params }: HomePageProps) {
   ])
 
   const theme = themeData as Tables<'daily_themes'> | null
-  const activeDuel = duelsData?.[0] || null
+  const activeDuel = (duelsData?.[0] as unknown as ActiveDuel) ?? null
 
   return (
     <div className="relative min-h-screen">

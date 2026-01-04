@@ -57,6 +57,7 @@ export default function EditProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatars, setAvatars] = useState<AvatarOption[]>([])
   const [username, setUsername] = useState('')
+  const [firstName, setFirstName] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [location, setLocation] = useState('')
   const [bio, setBio] = useState('')
@@ -106,6 +107,14 @@ export default function EditProfilePage() {
     setBadgeShowcase(profileData.badges_showcase || [])
     setLoading(false)
 
+    const { data: privateData } = await supabase
+      .from('profile_private')
+      .select('first_name')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    setFirstName((privateData as { first_name?: string | null } | null)?.first_name || '')
+
     await fetchAvatars(profileData.avatar_tier || 'standard')
     if ((profileData.badge_showcase_slots || 0) > 0) {
       await fetchBadges(user.id)
@@ -138,7 +147,7 @@ export default function EditProfilePage() {
       return
     }
 
-    const badgeRows = (data || []) as Array<{ badges: BadgeOption | null }>
+    const badgeRows = (data || []) as unknown as Array<{ badges: BadgeOption | null }>
     setBadges(badgeRows.map((row) => row.badges).filter(Boolean) as BadgeOption[])
   }
 
@@ -163,25 +172,42 @@ export default function EditProfilePage() {
     if (!profile) return
 
     setSaving(true)
+    const profileUpdate: Record<string, unknown> = {
+      display_name: displayName || null,
+      location: location || null,
+      bio: bio || null,
+      avatar_id: avatarId,
+      profile_visibility: visibility,
+      banner_url: profile.banner_unlocked ? (bannerUrl || null) : profile.banner_url,
+      badges_showcase: badgeShowcase.slice(0, badgeShowcaseSlots),
+      updated_at: new Date().toISOString(),
+    }
+
+    if (!profile.username && username.trim()) {
+      profileUpdate.username = username.trim()
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update({
-        username: username || null,
-        display_name: displayName || null,
-        location: location || null,
-        bio: bio || null,
-        avatar_id: avatarId,
-        profile_visibility: visibility,
-        banner_url: profile.banner_unlocked ? (bannerUrl || null) : profile.banner_url,
-        badges_showcase: badgeShowcase.slice(0, badgeShowcaseSlots),
-        updated_at: new Date().toISOString(),
-      } as never)
+      .update(profileUpdate as never)
       .eq('id', profile.id)
 
     if (error) {
       toast.error('Fehler beim Speichern')
       console.error(error)
     } else {
+      const { error: privateError } = await supabase
+        .from('profile_private')
+        .upsert({
+          user_id: profile.id,
+          first_name: firstName || null,
+          updated_at: new Date().toISOString(),
+        } as never, { onConflict: 'user_id' })
+
+      if (privateError) {
+        console.error(privateError)
+      }
+
       toast.success('Profil gespeichert!')
       fetch('/api/badges/check', { method: 'POST' }).catch(() => {})
       router.push(`/${locale}/profile`)
@@ -283,7 +309,13 @@ export default function EditProfilePage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="benutzername"
+                    disabled={Boolean(profile?.username)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {profile?.username
+                      ? 'Der Benutzername kann nicht geändert werden.'
+                      : 'Der Benutzername kann nur einmal gesetzt werden.'}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -298,6 +330,18 @@ export default function EditProfilePage() {
                     placeholder="Dein Anzeigename"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="firstName">
+                  Vorname (nicht öffentlich)
+                </Label>
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Vorname"
+                />
               </div>
 
               <div className="space-y-2">

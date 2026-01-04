@@ -158,7 +158,7 @@ export async function evaluateBadgesForUser(
     reactionCounts[row.reaction] = row.count
   })
 
-  const duelVotes = (duelVotesResult.data || []) as Array<{
+  const duelVotes = (duelVotesResult.data || []) as unknown as Array<{
     duel_id: string
     voted_for: 'a' | 'b'
     created_at: string

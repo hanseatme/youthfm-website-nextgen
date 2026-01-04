@@ -12,17 +12,18 @@ interface AvatarDisplayProps {
 }
 
 export function AvatarDisplay({ avatarId, fallback, className }: AvatarDisplayProps) {
-  const [avatarUrl, setAvatarUrl] = useState<string>('/avatars/default.png')
+  const [avatarUrl, setAvatarUrl] = useState<string>('/avatars/default.svg')
   const supabase = createClient()
 
   useEffect(() => {
-    if (!avatarId) return
+    if (avatarId == null) return
+    const resolvedAvatarId = avatarId
 
     async function fetchAvatarUrl() {
       const { data: avatar } = await supabase
         .from('avatars')
         .select('file_path')
-        .eq('id', avatarId)
+        .eq('id', resolvedAvatarId)
         .single()
 
       if (avatar) {
@@ -34,7 +35,7 @@ export function AvatarDisplay({ avatarId, fallback, className }: AvatarDisplayPr
     }
 
     fetchAvatarUrl()
-  }, [avatarId])
+  }, [avatarId, supabase])
 
   return (
     <Avatar className={cn('h-24 w-24', className)}>

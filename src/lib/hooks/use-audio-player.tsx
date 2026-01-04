@@ -8,6 +8,7 @@ interface NowPlayingInfo {
   artist: string
   track_id?: number | null
   preview_url?: string | null
+  started_at?: string | null
   artwork?: string
   listeners?: number
   elapsed?: number
@@ -70,6 +71,23 @@ export function AudioPlayerProvider({ children }: AudioPlayerProviderProps) {
   const [isStreamEnabled, setIsStreamEnabled] = useState(true)
   const { user } = useAuth()
   const sessionIdRef = useRef<string | null>(null)
+  const nowPlayingBaseRef = useRef<{
+    trackKey: string | null
+    syncedAtMs: number
+    elapsedSeconds: number
+    durationSeconds: number | null
+  } | null>(null)
+
+  const getTrackKey = useCallback((info: NowPlayingInfo | null) => {
+    if (!info) return null
+    if (typeof info.started_at === 'string' && info.started_at) {
+      return `play:${info.started_at}`
+    }
+    if (typeof info.track_id === 'number' && Number.isFinite(info.track_id) && info.track_id > 0) {
+      return `track:${info.track_id}`
+    }
+    return `title:${info.title}|artist:${info.artist}`
+  }, [])
 
   // Initialize global audio element once
   useEffect(() => {
@@ -147,17 +165,57 @@ export function AudioPlayerProvider({ children }: AudioPlayerProviderProps) {
           const data = await response.json()
 
           if (data?.title) {
-            setNowPlaying({
-              title: data.title || 'Unknown',
-              artist: data.artist || 'Unknown Artist',
-              track_id: typeof data.track_id === 'number' ? data.track_id : null,
-              preview_url: typeof data.preview_url === 'string' ? data.preview_url : null,
-              artwork: data.artwork || data.artwork_url,
-              listeners: data.listeners ?? undefined,
-              elapsed: data.elapsed ?? undefined,
-              duration: data.duration ?? undefined,
-              show: data.show ?? undefined,
-              category: data.category ?? undefined,
+            const elapsed = typeof data.elapsed === 'number' && Number.isFinite(data.elapsed) ? data.elapsed : undefined
+            const duration = typeof data.duration === 'number' && Number.isFinite(data.duration) ? data.duration : undefined
+            const startedAtRaw = typeof data.started_at === 'string' ? data.started_at : null
+            const trackKey = startedAtRaw
+              ? `play:${startedAtRaw}`
+              : ((typeof data.track_id === 'number' && Number.isFinite(data.track_id) && data.track_id > 0)
+                ? `track:${data.track_id}`
+                : `title:${data.title || ''}|artist:${data.artist || ''}`)
+
+            const isSameTrack = nowPlayingBaseRef.current?.trackKey === trackKey
+
+            if (!isSameTrack) {
+              if (elapsed !== undefined || duration !== undefined) {
+                nowPlayingBaseRef.current = {
+                  trackKey,
+                  syncedAtMs: Date.now(),
+                  elapsedSeconds: elapsed ?? 0,
+                  durationSeconds: duration ?? null,
+                }
+              } else {
+                nowPlayingBaseRef.current = null
+              }
+            }
+
+            // Only sync elapsed/duration once per track play; afterwards the UI ticks locally.
+            setNowPlaying((prev) => {
+              const nextBase = {
+                title: data.title || 'Unknown',
+                artist: data.artist || 'Unknown Artist',
+                track_id: typeof data.track_id === 'number' ? data.track_id : null,
+                preview_url: typeof data.preview_url === 'string' ? data.preview_url : null,
+                started_at: startedAtRaw,
+                artwork: data.artwork || data.artwork_url,
+                listeners: data.listeners ?? undefined,
+                show: data.show ?? undefined,
+                category: data.category ?? undefined,
+              } satisfies Omit<NowPlayingInfo, 'elapsed' | 'duration'>
+
+              if (!prev || !isSameTrack) {
+                return { ...nextBase, elapsed, duration }
+              }
+
+              if (nowPlayingBaseRef.current && nowPlayingBaseRef.current.durationSeconds == null && duration !== undefined) {
+                nowPlayingBaseRef.current.durationSeconds = duration
+              }
+
+              return {
+                ...prev,
+                ...nextBase,
+                duration: prev.duration ?? duration,
+              }
             })
           }
 
@@ -183,6 +241,32 @@ export function AudioPlayerProvider({ children }: AudioPlayerProviderProps) {
     const interval = setInterval(fetchNowPlaying, pollIntervalMs)
     return () => clearInterval(interval)
   }, [pollIntervalMs])
+
+  // Keep the track "elapsed" counter ticking locally between API polls.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const base = nowPlayingBaseRef.current
+      if (!base) return
+
+      const nextElapsedRaw = base.elapsedSeconds + (Date.now() - base.syncedAtMs) / 1000
+
+      const nextElapsed = Math.max(
+        0,
+        base.durationSeconds != null
+          ? Math.min(base.durationSeconds, nextElapsedRaw)
+          : nextElapsedRaw
+      )
+
+      setNowPlaying((prev) => {
+        if (!prev || prev.elapsed === undefined) return prev
+        if (getTrackKey(prev) !== base.trackKey) return prev
+        if (Math.abs((prev.elapsed ?? 0) - nextElapsed) < 0.5) return prev
+        return { ...prev, elapsed: nextElapsed }
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [getTrackKey])
 
   // Update volume when state changes
   useEffect(() => {

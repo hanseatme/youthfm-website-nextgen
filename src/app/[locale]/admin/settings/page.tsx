@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, RefreshCw, Radio, Sparkles, Clock, Shield } from 'lucide-react'
+import { Save, RefreshCw, Radio, Sparkles, Clock, Shield, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
@@ -24,12 +25,18 @@ export default function AdminSettingsPage() {
   const [streamserverApiKey, setStreamserverApiKey] = useState('')
   const [loadingSecrets, setLoadingSecrets] = useState(false)
   const [savingSecrets, setSavingSecrets] = useState(false)
+  const [captchaSecretKey, setCaptchaSecretKey] = useState('')
+  const [legalPrivacy, setLegalPrivacy] = useState('')
+  const [legalTerms, setLegalTerms] = useState('')
+  const [loadingLegal, setLoadingLegal] = useState(false)
+  const [savingLegal, setSavingLegal] = useState(false)
 
   const supabase = createClient()
 
   useEffect(() => {
     fetchSettings()
     fetchSecrets()
+    fetchLegal()
   }, [])
 
   const fetchSettings = async () => {
@@ -54,11 +61,13 @@ export default function AdminSettingsPage() {
   const fetchSecrets = async () => {
     setLoadingSecrets(true)
     try {
-      const response = await fetch('/api/admin/private-settings?keys=streamserver_api_key')
+      const response = await fetch('/api/admin/private-settings?keys=streamserver_api_key,captcha_secret_key')
       if (!response.ok) return
       const data = await response.json()
       const value = data?.settings?.streamserver_api_key
       setStreamserverApiKey(typeof value === 'string' ? value : '')
+      const captchaValue = data?.settings?.captcha_secret_key
+      setCaptchaSecretKey(typeof captchaValue === 'string' ? captchaValue : '')
     } catch (error) {
       console.error(error)
     } finally {
@@ -86,6 +95,72 @@ export default function AdminSettingsPage() {
       toast.error('Fehler beim Speichern des API Keys')
     } finally {
       setSavingSecrets(false)
+    }
+  }
+
+  const saveCaptchaSecretKey = async () => {
+    setSavingSecrets(true)
+    try {
+      const response = await fetch('/api/admin/private-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'captcha_secret_key', value: captchaSecretKey }),
+      })
+
+      if (!response.ok) {
+        toast.error('Fehler beim Speichern des Captcha Secret Keys')
+        return
+      }
+
+      toast.success('Captcha Secret Key gespeichert')
+    } catch (error) {
+      console.error(error)
+      toast.error('Fehler beim Speichern des Captcha Secret Keys')
+    } finally {
+      setSavingSecrets(false)
+    }
+  }
+
+  const fetchLegal = async () => {
+    setLoadingLegal(true)
+    try {
+      const { data, error } = await supabase
+        .from('legal_documents')
+        .select('slug, content')
+        .in('slug', ['privacy', 'terms'])
+
+      if (error) throw error
+      const rows = (data || []) as Array<{ slug: string; content: string }>
+      setLegalPrivacy(rows.find((r) => r.slug === 'privacy')?.content || '')
+      setLegalTerms(rows.find((r) => r.slug === 'terms')?.content || '')
+    } catch (error) {
+      console.error(error)
+      toast.error('Fehler beim Laden der Rechtstexte')
+    } finally {
+      setLoadingLegal(false)
+    }
+  }
+
+  const saveLegal = async (slug: 'privacy' | 'terms', content: string) => {
+    setSavingLegal(true)
+    try {
+      const title = slug === 'privacy' ? 'Datenschutz' : 'Nutzungsbedingungen'
+      const { error } = await supabase
+        .from('legal_documents')
+        .upsert({
+          slug,
+          title,
+          content,
+          updated_at: new Date().toISOString(),
+        } as never, { onConflict: 'slug' })
+
+      if (error) throw error
+      toast.success('Rechtstext gespeichert')
+    } catch (error) {
+      console.error(error)
+      toast.error('Fehler beim Speichern des Rechtstexts')
+    } finally {
+      setSavingLegal(false)
     }
   }
 
@@ -267,6 +342,136 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Captcha Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Captcha
+          </CardTitle>
+          <CardDescription>
+            Schutz für Registrierungen (Turnstile)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Captcha aktiv</Label>
+              <p className="text-sm text-muted-foreground">
+                Erzwingt Captcha beim Registrieren
+              </p>
+            </div>
+            <Switch
+              checked={settings.captcha_enabled as boolean ?? false}
+              onCheckedChange={(checked) => updateSetting('captcha_enabled', checked)}
+              disabled={saving}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label htmlFor="captcha_site_key">Captcha Site Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="captcha_site_key"
+                value={(settings.captcha_site_key as string) || ''}
+                onChange={(e) => handleInputChange('captcha_site_key', e.target.value)}
+                placeholder="0x...."
+              />
+              <Button
+                variant="outline"
+                onClick={() => handleInputSave('captcha_site_key')}
+                disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="captcha_secret_key">Captcha Secret Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="captcha_secret_key"
+                value={captchaSecretKey}
+                onChange={(e) => setCaptchaSecretKey(e.target.value)}
+                placeholder="0x...."
+                type="password"
+                disabled={loadingSecrets}
+              />
+              <Button
+                variant="outline"
+                onClick={saveCaptchaSecretKey}
+                disabled={savingSecrets || loadingSecrets}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Legal Documents */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Rechtstexte
+          </CardTitle>
+          <CardDescription>
+            Datenschutz und Nutzungsbedingungen (werden im Footer verlinkt)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="legal_privacy">Datenschutzerklärung</Label>
+            <Textarea
+              id="legal_privacy"
+              value={legalPrivacy}
+              onChange={(e) => setLegalPrivacy(e.target.value)}
+              rows={10}
+              disabled={loadingLegal || savingLegal}
+              placeholder="Text für Datenschutz..."
+            />
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => saveLegal('privacy', legalPrivacy)}
+                disabled={loadingLegal || savingLegal}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Speichern
+              </Button>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label htmlFor="legal_terms">Nutzungsbedingungen</Label>
+            <Textarea
+              id="legal_terms"
+              value={legalTerms}
+              onChange={(e) => setLegalTerms(e.target.value)}
+              rows={10}
+              disabled={loadingLegal || savingLegal}
+              placeholder="Text für Nutzungsbedingungen..."
+            />
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => saveLegal('terms', legalTerms)}
+                disabled={loadingLegal || savingLegal}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Speichern
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Gamification Settings */}
       <Card>
         <CardHeader>
@@ -397,6 +602,44 @@ export default function AdminSettingsPage() {
             </div>
             <p className="text-sm text-muted-foreground">
               Minuten, die ein Nutzer taeglich hoeren muss
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Funkbuch Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            Funkbuch
+          </CardTitle>
+          <CardDescription>
+            Limits und Einstellungen für Vibe-Postkarten
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="funkbook_max_cards_per_day">Max. Karten pro Tag (pro Nutzer)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="funkbook_max_cards_per_day"
+                type="number"
+                value={(settings.funkbook_max_cards_per_day as number) || 2}
+                onChange={(e) => handleInputChange('funkbook_max_cards_per_day', parseInt(e.target.value))}
+                min={1}
+                max={10}
+              />
+              <Button
+                variant="outline"
+                onClick={() => handleInputSave('funkbook_max_cards_per_day')}
+                disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Wie viele Funkbuch-Karten ein Nutzer pro Tag erstellen darf.
             </p>
           </div>
         </CardContent>

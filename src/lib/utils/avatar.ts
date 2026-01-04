@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/client'
 
 export function getAvatarUrl(avatarId: number | null): string {
   if (!avatarId) {
-    return '/avatars/default.png' // Fallback
+    return '/avatars/default.svg' // Fallback
   }
 
   const supabase = createClient()

@@ -1,17 +1,22 @@
 import { setRequestLocale } from 'next-intl/server'
 import { getTranslations } from 'next-intl/server'
+import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { MapPin, Calendar, Sparkles, Flame, TrendingUp } from 'lucide-react'
+import { MapPin, Calendar, Sparkles, Flame, TrendingUp, MessageSquare } from 'lucide-react'
 import type { Tables } from '@/types/database'
+import { Link } from '@/i18n/navigation'
+import { Button } from '@/components/ui/button'
+import { FunkbookCards } from '@/components/profile/funkbook-cards'
 
 interface UserProfilePageProps {
   params: Promise<{ locale: string; username: string }>
 }
 
 type Profile = Tables<'profiles'>
+type AvatarRow = Tables<'avatars'>
 
 export default async function UserProfilePage({ params }: UserProfilePageProps) {
   const { locale, username } = await params
@@ -21,11 +26,13 @@ export default async function UserProfilePage({ params }: UserProfilePageProps) 
   const supabase = await createClient()
 
   // Fetch user profile by username
-  const { data: profile } = await supabase
+  const { data: profileData } = await supabase
     .from('profiles')
     .select('*')
     .eq('username', username)
     .single()
+
+  const profile = (profileData as Profile | null)
 
   if (!profile) {
     notFound()
@@ -56,21 +63,104 @@ export default async function UserProfilePage({ params }: UserProfilePageProps) 
   }
 
   // Get avatar URL
-  let avatarUrl = '/avatars/default.png'
+  let avatarUrl = '/avatars/default.svg'
   if (profile.avatar_id) {
-    const { data: avatar } = await supabase
+    const { data: avatarData } = await supabase
       .from('avatars')
       .select('file_path')
       .eq('id', profile.avatar_id)
       .single()
 
-    if (avatar) {
+    const avatar = (avatarData as Pick<AvatarRow, 'file_path'> | null)
+
+    if (avatar?.file_path) {
       const { data } = supabase.storage
         .from('avatars')
         .getPublicUrl(avatar.file_path)
       avatarUrl = data.publicUrl
     }
   }
+
+  const [{ data: activityFeedData }, { data: chatMessagesData }] = await Promise.all([
+    supabase
+      .from('activity_feed')
+      .select('id, event_type, event_data, created_at')
+      .eq('user_id', profile.id)
+      .eq('is_public', true)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('chat_messages')
+      .select('id, content, created_at, channel')
+      .eq('user_id', profile.id)
+      .eq('status', 'active')
+      .in('channel', ['theme', 'main'])
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ])
+
+  const { data: funkbookCardsData } = await supabase
+    .from('vibe_postcards')
+    .select('id, date, slot, note, energy_level, situation, mood_tags, activity_tags, style, songs(title, artist, preview_url, track_id)')
+    .eq('user_id', profile.id)
+    .eq('status', 'active')
+    .eq('visibility', 'public')
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  const funkbookCards = (funkbookCardsData || []) as unknown as Array<{
+    id: string
+    date: string
+    slot: number | null
+    note: string
+    energy_level: number | null
+    situation: string | null
+    mood_tags: string[] | null
+    activity_tags: string[] | null
+    style: unknown
+    songs: { title: string; artist: string | null; preview_url: string | null; track_id: number | null } | null
+  }>
+
+  type ActivityItem = {
+    id: string
+    created_at: string
+    icon: ReactNode
+    title: string
+    description?: string
+  }
+
+  const activityItems: ActivityItem[] = []
+
+  for (const row of activityFeedData || []) {
+    const ev = row as unknown as { id: string; event_type: string; event_data: any; created_at: string }
+    if (ev.event_type === 'badge_unlocked') {
+      activityItems.push({
+        id: `badge:${ev.id}`,
+        created_at: ev.created_at,
+        icon: <span className="text-base leading-none">{ev.event_data?.badge_icon ?? '🏅'}</span>,
+        title: locale === 'de' ? 'Badge freigeschaltet' : 'Badge unlocked',
+        description: ev.event_data?.badge_name,
+      })
+    }
+  }
+
+  for (const row of chatMessagesData || []) {
+    const msg = row as unknown as { id: string; content: string; created_at: string; channel: string }
+    activityItems.push({
+      id: `chat:${msg.id}`,
+      created_at: msg.created_at,
+      icon: <MessageSquare className="h-4 w-4 text-muted-foreground" />,
+      title: locale === 'de'
+        ? (msg.channel === 'theme' ? 'Beitrag im Tagesthema' : 'Beitrag in der Community')
+        : (msg.channel === 'theme' ? 'Post in theme discussion' : 'Post in community'),
+      description: msg.content,
+    })
+  }
+
+  const recentActivity = activityItems
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 12)
 
   const stats = [
     {
@@ -92,6 +182,8 @@ export default async function UserProfilePage({ params }: UserProfilePageProps) 
       color: 'text-blue-500',
     },
   ]
+
+  const canMessage = Boolean(currentUser?.id) && currentUser?.id !== profile.id && Boolean(profile.username)
 
   return (
     <div className="relative min-h-screen">
@@ -129,6 +221,16 @@ export default async function UserProfilePage({ params }: UserProfilePageProps) 
                   <div className="flex items-center gap-2 mt-3 justify-center sm:justify-start">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">{profile.location}</span>
+                  </div>
+                )}
+
+                {canMessage && (
+                  <div className="mt-4 flex justify-center sm:justify-start">
+                    <Button asChild className="rounded-full">
+                      <Link href={`/community?tab=messages&to=${encodeURIComponent(profile.username!)}`}>
+                        Nachricht senden
+                      </Link>
+                    </Button>
                   </div>
                 )}
 
@@ -175,14 +277,40 @@ export default async function UserProfilePage({ params }: UserProfilePageProps) 
             ))}
           </div>
 
+          <FunkbookCards
+            locale={locale}
+            cards={funkbookCards}
+            title={locale === 'de' ? 'Funkbuch' : 'Funkbook'}
+            subtitle={locale === 'de' ? 'Oeffentliche Karten' : 'Public cards'}
+          />
+
           {/* Recent Activity */}
           <div className="glass-card rounded-3xl p-6">
             <h2 className="text-xl font-semibold mb-4">
               {locale === 'de' ? 'Aktivität' : 'Recent Activity'}
             </h2>
-            <div className="text-center py-8 text-muted-foreground">
-              {locale === 'de' ? 'Keine aktuellen Aktivitäten' : 'No recent activity'}
-            </div>
+            {recentActivity.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {locale === 'de' ? 'Keine aktuellen Aktivitäten' : 'No recent activity'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentActivity.map((item) => (
+                  <div key={item.id} className="flex items-start gap-3 rounded-xl border border-border/50 px-3 py-2">
+                    <div className="mt-0.5">{item.icon}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{item.title}</p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(item.created_at).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

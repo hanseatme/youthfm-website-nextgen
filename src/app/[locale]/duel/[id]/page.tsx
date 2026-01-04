@@ -7,6 +7,38 @@ interface DuelPageProps {
   params: Promise<{ locale: string; id: string }>
 }
 
+type DuelForVoting = {
+  id: string
+  song_a_id: string | null
+  song_b_id: string | null
+  prompt?: string | null
+  option_a_text?: string | null
+  option_b_text?: string | null
+  votes_a: number
+  votes_b: number
+  status: string
+  started_at: string | null
+  ended_at: string | null
+  song_a: {
+    id: string
+    title: string
+    artist: string
+    artwork_url?: string | null
+    track_id?: number | null
+    preview_url?: string | null
+    external_id?: string | null
+  } | null
+  song_b: {
+    id: string
+    title: string
+    artist: string
+    artwork_url?: string | null
+    track_id?: number | null
+    preview_url?: string | null
+    external_id?: string | null
+  } | null
+}
+
 export default async function DuelPage({ params }: DuelPageProps) {
   const { locale, id } = await params
   setRequestLocale(locale)
@@ -27,6 +59,8 @@ export default async function DuelPage({ params }: DuelPageProps) {
   if (error || !duel) {
     redirect('/')
   }
+
+  const duelForVoting = duel as unknown as DuelForVoting
 
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser()
@@ -62,7 +96,7 @@ export default async function DuelPage({ params }: DuelPageProps) {
       <div className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-4xl mx-auto w-full">
           <DuelVoting
-            duel={duel}
+            duel={duelForVoting}
             hasVoted={hasVoted}
             userVote={userVote}
             isAuthenticated={!!user}

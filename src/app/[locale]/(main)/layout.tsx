@@ -1,5 +1,6 @@
 import { Header } from '@/components/layout/header'
 import { MiniPlayer } from '@/components/player/mini-player'
+import { Link } from '@/i18n/navigation'
 
 export default function MainLayout({
   children,
@@ -24,14 +25,12 @@ export default function MainLayout({
               >
                 Impressum
               </a>
-              <a
-                href="https://hanseat.me/datenschutz"
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-foreground transition-colors"
-              >
+              <Link href="/privacy" className="hover:text-foreground transition-colors">
                 Datenschutz
-              </a>
+              </Link>
+              <Link href="/terms" className="hover:text-foreground transition-colors">
+                Nutzungsbedingungen
+              </Link>
             </div>
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
               2026 (c) hanseatische medienfabrik

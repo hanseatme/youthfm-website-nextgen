@@ -25,6 +25,7 @@
     "home": "Home",
     "topSongs": "Top 10 Songs",
     "community": "Community",
+    "messages": "Messages",
     "leaderboard": "Leaderboard",
     "shop": "Shop",
     "profile": "Profile",
@@ -192,7 +193,8 @@
       "theme": "Theme chat"
     },
     "topListeners": {
-      "title": "Top Listeners"
+      "title": "Top Listeners",
+      "loading": "Loading top listeners..."
     },
     "activity": {
       "title": "Activity"

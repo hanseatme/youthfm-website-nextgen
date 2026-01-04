@@ -45,10 +45,7 @@ export async function POST(request: NextRequest) {
       : null
 
     if (lastActivity === today) {
-      return NextResponse.json(
-        { error: 'Already claimed today', already_claimed: true },
-        { status: 400 }
-      )
+      return NextResponse.json({ ok: true, already_claimed: true })
     }
 
     // Calculate daily reward based on streak
@@ -68,7 +65,6 @@ export async function POST(request: NextRequest) {
         p_amount: rewardBase,
         p_reason: 'daily_login',
         p_reference_type: 'daily_activity',
-        p_reference_id: null,
       })
 
       if (vibesError) {

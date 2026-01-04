@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         } as never)
         .eq('id', session_id)
         .eq('user_id', user.id)
-        .eq('ended_at', null)
+        .is('ended_at', null)
 
       if (updateError) {
         return NextResponse.json({ error: 'Failed to end session' }, { status: 500 })

@@ -1,10 +1,11 @@
 ﻿'use client'
 
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { HeroPlayer } from '@/components/player/hero-player'
+import { RecentTracksRail } from '@/components/player/recent-tracks-rail'
 import { DuelPreview } from '@/components/duels/duel-preview'
 import { Button } from '@/components/ui/button'
 import { Link } from '@/i18n/navigation'
@@ -33,6 +34,7 @@ interface ThemeOfDayProps {
 
 export function ThemeOfDay({ theme, isLoading, activeDuel }: ThemeOfDayProps) {
   const t = useTranslations('theme')
+  const locale = useLocale()
 
   if (isLoading) {
     return (
@@ -55,6 +57,7 @@ export function ThemeOfDay({ theme, isLoading, activeDuel }: ThemeOfDayProps) {
     return (
       <div className="glass-card rounded-3xl overflow-hidden p-4 sm:p-6 space-y-6">
         <HeroPlayer showMoodFeedback />
+        <RecentTracksRail locale={locale} />
         <div className="border-t border-border/40 pt-6">
           <DuelPreview duel={activeDuel} layout="horizontal" />
         </div>
@@ -110,6 +113,7 @@ export function ThemeOfDay({ theme, isLoading, activeDuel }: ThemeOfDayProps) {
 
       <div className="p-4 sm:p-6 space-y-6">
         <HeroPlayer showMoodFeedback />
+        <RecentTracksRail locale={locale} />
 
         <div className="border-t border-border/40 pt-6">
           <DuelPreview duel={activeDuel} layout="horizontal" />

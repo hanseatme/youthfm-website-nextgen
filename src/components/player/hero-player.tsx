@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useState } from 'react'
-import { Play, Pause, Volume2, VolumeX, Loader2, Users, MessageCircle, SlidersVertical } from 'lucide-react'
+import { Play, Pause, Volume2, VolumeX, Loader2, Users, MessageCircle, SlidersVertical, ChevronDown } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -46,6 +46,7 @@ export function HeroPlayer({ showMoodFeedback = true }: HeroPlayerProps) {
   const [dedicationMessage, setDedicationMessage] = useState('')
   const [isRequesting, setIsRequesting] = useState(false)
   const [showVolume, setShowVolume] = useState(false)
+  const [studioSpecialsOpen, setStudioSpecialsOpen] = useState(false)
 
   const moderatorName = 'Jan'
   const moderatorImage = '/mod_jan.png'
@@ -327,11 +328,27 @@ export function HeroPlayer({ showMoodFeedback = true }: HeroPlayerProps) {
             </div>
 
             {(profile?.skip_credits || profile?.song_request_pool_credits || profile?.dedication_credits) ? (
-              <div className="border-t border-border/60 pt-4 space-y-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Studio Specials
-                </div>
+              <div className="border-t border-border/60 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setStudioSpecialsOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition-colors hover:bg-muted/30"
+                  aria-expanded={studioSpecialsOpen}
+                  aria-controls="studio-specials"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Studio Specials
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform",
+                      studioSpecialsOpen && "rotate-180"
+                    )}
+                  />
+                </button>
 
+                {studioSpecialsOpen && (
+                  <div id="studio-specials" className="mt-3 space-y-4">
                 {profile.skip_credits > 0 && (
                   <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2">
                     <div className="text-xs">
@@ -415,6 +432,8 @@ export function HeroPlayer({ showMoodFeedback = true }: HeroPlayerProps) {
                         Widmung senden
                       </button>
                     </div>
+                  </div>
+                )}
                   </div>
                 )}
               </div>

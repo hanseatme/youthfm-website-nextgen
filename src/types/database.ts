@@ -17,7 +17,7 @@ export type ChallengeType = 'daily' | 'weekly'
 export type ShopCategory = 'influence' | 'personalization' | 'status' | 'extras'
 export type AvatarCategory = 'standard' | 'premium' | 'exclusive'
 
-export interface Database {
+export interface DatabaseSchema {
   public: {
     Tables: {
         profiles: {
@@ -474,6 +474,108 @@ export interface Database {
           created_at?: string
         }
       }
+      vibe_postcards: {
+        Row: {
+          id: string
+          user_id: string
+          date: string
+          slot: number
+          song_id: string | null
+          reaction: number | null
+          mood_tags: string[] | null
+          activity_tags: string[] | null
+          energy_level: number | null
+          situation: string | null
+          style: Json
+          note: string
+          visibility: string
+          status: string
+          reactions_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          date: string
+          slot?: number
+          song_id?: string | null
+          reaction?: number | null
+          mood_tags?: string[] | null
+          activity_tags?: string[] | null
+          energy_level?: number | null
+          situation?: string | null
+          style?: Json
+          note?: string
+          visibility?: string
+          status?: string
+          reactions_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          date?: string
+          slot?: number
+          song_id?: string | null
+          reaction?: number | null
+          mood_tags?: string[] | null
+          activity_tags?: string[] | null
+          energy_level?: number | null
+          situation?: string | null
+          style?: Json
+          note?: string
+          visibility?: string
+          status?: string
+          reactions_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      postcard_reactions: {
+        Row: {
+          postcard_id: string
+          user_id: string
+          reaction_type: string
+          created_at: string
+        }
+        Insert: {
+          postcard_id: string
+          user_id: string
+          reaction_type?: string
+          created_at?: string
+        }
+        Update: {
+          postcard_id?: string
+          user_id?: string
+          reaction_type?: string
+          created_at?: string
+        }
+      }
+      postcard_reports: {
+        Row: {
+          id: string
+          postcard_id: string
+          reporter_id: string
+          reason: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          postcard_id: string
+          reporter_id: string
+          reason?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          postcard_id?: string
+          reporter_id?: string
+          reason?: string
+          created_at?: string
+        }
+      }
       notifications: {
         Row: {
           id: string
@@ -825,6 +927,115 @@ export interface Database {
           updated_at?: string
         }
       }
+      legal_documents: {
+        Row: {
+          slug: string
+          title: string
+          content: string
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          slug: string
+          title: string
+          content?: string
+          updated_at?: string
+          created_at?: string
+        }
+        Update: {
+          slug?: string
+          title?: string
+          content?: string
+          updated_at?: string
+          created_at?: string
+        }
+      }
+      profile_private: {
+        Row: {
+          user_id: string
+          first_name: string | null
+          accepted_terms_at: string | null
+          accepted_privacy_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          first_name?: string | null
+          accepted_terms_at?: string | null
+          accepted_privacy_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          first_name?: string | null
+          accepted_terms_at?: string | null
+          accepted_privacy_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      dm_conversations: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      dm_participants: {
+        Row: {
+          conversation_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          conversation_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          user_id?: string
+          created_at?: string
+        }
+      }
+      dm_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string
+          content: string
+          status: MessageStatus
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id: string
+          content: string
+          status?: MessageStatus
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          sender_id?: string
+          content?: string
+          status?: MessageStatus
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -833,6 +1044,12 @@ export interface Database {
       increment_song_preview_play: {
         Args: {
           p_song_id: string
+        }
+        Returns: undefined
+      }
+      increment_song_preview_play_by_track: {
+        Args: {
+          p_track_id: number
         }
         Returns: undefined
       }
@@ -894,6 +1111,64 @@ export interface Database {
         }
         Returns: undefined
       }
+      get_or_create_dm_conversation: {
+        Args: {
+          p_other_user_id: string
+        }
+        Returns: string
+      }
+      get_my_dm_conversations: {
+        Args: Record<PropertyKey, never>
+        Returns: Array<{
+          conversation_id: string
+          other_user_id: string
+          other_username: string | null
+          other_display_name: string
+          other_avatar_id: number | null
+          last_message: string | null
+          last_message_at: string | null
+        }>
+      }
+      create_vibe_postcard: {
+        Args: {
+          p_postcard_id?: string | null
+          p_date?: string
+          p_note?: string
+          p_mood_tags?: string[] | null
+          p_activity_tags?: string[] | null
+          p_energy_level?: number | null
+          p_situation?: string | null
+          p_visibility?: string
+          p_song_id?: string | null
+          p_track_id?: number | null
+          p_style?: Json
+        }
+        Returns: {
+          id: string
+          user_id: string
+          date: string
+          slot: number
+          song_id: string | null
+          reaction: number | null
+          mood_tags: string[] | null
+          activity_tags: string[] | null
+          energy_level: number | null
+          situation: string | null
+          style: Json
+          note: string
+          visibility: string
+          status: string
+          reactions_count: number
+          created_at: string
+          updated_at: string
+        }
+      }
+      toggle_postcard_reaction: {
+        Args: {
+          p_postcard_id: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       profile_visibility: ProfileVisibility
@@ -909,6 +1184,24 @@ export interface Database {
     }
   }
 }
+
+type EnsureRelationships<T> = T extends { Row: unknown; Insert: unknown; Update: unknown }
+  ? T & { Relationships: T extends { Relationships: unknown } ? T['Relationships'] : [] }
+  : T
+
+type EnsureSchemaRelationships<TSchema> = TSchema extends {
+  Tables: infer TTables
+  Views: infer TViews
+}
+  ? Omit<TSchema, 'Tables' | 'Views'> & {
+      Tables: { [K in keyof TTables]: EnsureRelationships<TTables[K]> }
+      Views: { [K in keyof TViews]: EnsureRelationships<TViews[K]> }
+    }
+  : TSchema
+
+export type Database = DatabaseSchema extends { public: infer TPublic }
+  ? Omit<DatabaseSchema, 'public'> & { public: EnsureSchemaRelationships<TPublic> }
+  : DatabaseSchema
 
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
 export type InsertTables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']

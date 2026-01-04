@@ -8,12 +8,16 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const body = await request.json().catch(() => ({}))
     const songId = (body as { song_id?: unknown })?.song_id
+    const trackIdRaw = (body as { track_id?: unknown })?.track_id
+    const trackId = typeof trackIdRaw === 'number' ? trackIdRaw : (typeof trackIdRaw === 'string' ? Number(trackIdRaw) : null)
 
-    if (typeof songId !== 'string' || !UUID_RE.test(songId)) {
-      return NextResponse.json({ error: 'song_id is required' }, { status: 400 })
+    if ((!songId || typeof songId !== 'string' || !UUID_RE.test(songId)) && !(Number.isFinite(trackId as number) && (trackId as number) > 0)) {
+      return NextResponse.json({ error: 'song_id or track_id is required' }, { status: 400 })
     }
 
-    const { error } = await supabase.rpc('increment_song_preview_play', { p_song_id: songId })
+    const { error } = Number.isFinite(trackId as number) && (trackId as number) > 0
+      ? await supabase.rpc('increment_song_preview_play_by_track', { p_track_id: trackId as number })
+      : await supabase.rpc('increment_song_preview_play', { p_song_id: songId as string })
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
@@ -24,4 +28,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

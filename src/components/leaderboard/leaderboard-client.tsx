@@ -51,9 +51,9 @@ export function LeaderboardClient({ users, currentUserId, locale, showVibes = tr
   }, [users])
 
   function getAvatarUrl(avatarId: number | null) {
-    if (!avatarId) return '/avatars/default.png'
+    if (!avatarId) return '/avatars/default.svg'
     const filePath = avatarMap[avatarId]
-    if (!filePath) return '/avatars/default.png'
+    if (!filePath) return '/avatars/default.svg'
     const { data } = supabase.storage
       .from('avatars')
       .getPublicUrl(filePath)

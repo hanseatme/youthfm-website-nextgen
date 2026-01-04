@@ -29,6 +29,9 @@ export async function GET() {
   const vibesPerFeedback = getSettingNumber(settings, 'vibes_per_feedback', 5)
   const vibesPerFeedbackExtended = getSettingNumber(settings, 'vibes_per_feedback_extended', 9)
   const vibesPerVote = getSettingNumber(settings, 'vibes_per_vote', 20)
+  const captchaEnabled = getSettingBoolean(settings, 'captcha_enabled', false)
+  const captchaSiteKey = getSettingString(settings, 'captcha_site_key') || null
+  const funkbookMaxCardsPerDay = getSettingNumber(settings, 'funkbook_max_cards_per_day', 2)
 
   return NextResponse.json({
     stream_url: streamUrl,
@@ -39,5 +42,8 @@ export async function GET() {
     vibes_per_feedback: vibesPerFeedback,
     vibes_per_feedback_extended: vibesPerFeedbackExtended,
     vibes_per_vote: vibesPerVote,
+    captcha_enabled: captchaEnabled,
+    captcha_site_key: captchaSiteKey,
+    funkbook_max_cards_per_day: funkbookMaxCardsPerDay,
   })
 }
