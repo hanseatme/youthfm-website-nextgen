@@ -38,8 +38,6 @@ export function Header() {
     { href: '/', label: t('home') },
     { href: '/top-songs', label: t('topSongs') },
     { href: '/community', label: t('community') },
-    { href: '/community?tab=messages', label: t('messages') },
-    { href: '/community?tab=leaderboard', label: t('leaderboard') },
     { href: '/shop', label: t('shop') },
   ]
 
@@ -160,12 +158,6 @@ export function Header() {
                     {t('settings')}
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/community?tab=messages" className="cursor-pointer">
-                    <MessagesSquare className="mr-2 h-4 w-4" />
-                    {t('messages')}
-                  </Link>
-                </DropdownMenuItem>
                 {profile?.is_admin && (
                   <>
                     <DropdownMenuSeparator />
@@ -284,15 +276,6 @@ export function Header() {
                         >
                           <Settings className="h-4 w-4" />
                           {t('settings')}
-                        </Link>
-                      </SheetClose>
-                      <SheetClose asChild>
-                        <Link
-                          href="/community?tab=messages"
-                          className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium hover:bg-muted/30"
-                        >
-                          <MessagesSquare className="h-4 w-4" />
-                          {t('messages')}
                         </Link>
                       </SheetClose>
                       {profile?.is_admin && (

@@ -115,47 +115,49 @@ export function TopSongsList({
         return (
           <div
             key={song.song_id}
-            className="flex items-center gap-4 rounded-2xl border border-border/50 bg-background/40 px-4 py-3"
+            className="rounded-2xl border border-border/50 bg-background/40 px-4 py-3"
           >
-            <div className="w-8 text-center text-sm font-bold text-muted-foreground">
-              {index + 1}
-            </div>
+            <div className="flex items-center gap-4">
+              <div className="w-8 text-center text-sm font-bold text-muted-foreground shrink-0">
+                {index + 1}
+              </div>
 
-            <div className="h-12 w-12 overflow-hidden rounded-xl bg-muted flex items-center justify-center">
-              {song.artwork_url ? (
-                <img
-                  src={song.artwork_url}
-                  alt={song.title}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <Music2 className="h-5 w-5 text-muted-foreground" />
+              <div className="h-12 w-12 overflow-hidden rounded-xl bg-muted flex items-center justify-center shrink-0">
+                {song.artwork_url ? (
+                  <img
+                    src={song.artwork_url}
+                    alt={song.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Music2 className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold truncate">{song.title}</p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {song.artist || labels.unknownArtist}
+                </p>
+              </div>
+
+              {hasPreview && (
+                <button
+                  type="button"
+                  onClick={() => togglePreview(song)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground hover:bg-background transition-colors shrink-0"
+                  aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
+                >
+                  {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                </button>
               )}
             </div>
 
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold truncate">{song.title}</p>
-              <p className="text-sm text-muted-foreground truncate">
-                {song.artist || labels.unknownArtist}
-              </p>
-            </div>
-
-            {hasPreview && (
-              <button
-                type="button"
-                onClick={() => togglePreview(song)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground hover:bg-background transition-colors"
-                aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
-              >
-                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-              </button>
-            )}
-
-            <div className="text-right">
+            <div className="mt-3 flex flex-col gap-1 sm:mt-0 sm:ml-auto sm:text-right">
               <div className="text-sm font-semibold">
                 {labels.avg}: {song.avg_reaction?.toFixed(2) ?? '-'}
               </div>
-              <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 {getReactionIcon(song.top_reaction)}
                 <span>{labels.topReaction}</span>
               </div>
@@ -166,4 +168,3 @@ export function TopSongsList({
     </div>
   )
 }
-

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -16,7 +16,7 @@ import { LeaderboardClient } from '@/components/leaderboard/leaderboard-client'
 import { Link, useRouter } from '@/i18n/navigation'
 import { DmPanel } from '@/components/community/dm-panel'
 import { FunkbookPanel } from '@/components/community/funkbook-panel'
-import { MessageCircle, MessagesSquare, Trophy, TrendingUp, Send, Reply, Sparkles, BookOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageCircle, MessagesSquare, Trophy, TrendingUp, Send, Reply, Sparkles, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type AvatarMap = Record<number, string>
@@ -75,11 +75,42 @@ export function CommunityCockpit() {
 
   const tabParam = searchParams.get('tab') || 'discussion'
   const [tab, setTab] = useState(VALID_TABS.has(tabParam) ? tabParam : 'discussion')
+  const tabsListRef = useRef<HTMLDivElement | null>(null)
+  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false)
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false)
 
   useEffect(() => {
     const next = VALID_TABS.has(tabParam) ? tabParam : 'discussion'
     setTab(next)
   }, [tabParam])
+
+  const updateTabsScroll = () => {
+    const el = tabsListRef.current
+    if (!el) return
+    const maxScrollLeft = el.scrollWidth - el.clientWidth
+    setCanScrollTabsLeft(el.scrollLeft > 8)
+    setCanScrollTabsRight(el.scrollLeft < maxScrollLeft - 8)
+  }
+
+  useEffect(() => {
+    updateTabsScroll()
+    const el = tabsListRef.current
+    if (!el) return
+    const onScroll = () => updateTabsScroll()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [])
+
+  const scrollTabsBy = (dir: 'left' | 'right') => {
+    const el = tabsListRef.current
+    if (!el) return
+    const delta = dir === 'left' ? -220 : 220
+    el.scrollBy({ left: delta, behavior: 'smooth' })
+  }
 
   const setTabAndUrl = (next: string) => {
     const safe = VALID_TABS.has(next) ? next : 'discussion'
@@ -419,24 +450,63 @@ export function CommunityCockpit() {
           </div>
 
           <Tabs value={tab} onValueChange={setTabAndUrl}>
-            <TabsList className="flex w-full flex-nowrap gap-1 overflow-x-auto hide-scrollbar justify-start">
-              <TabsTrigger value="discussion" className="flex items-center gap-2">
-                <MessageCircle className="h-4 w-4" />
-                {locale === 'de' ? 'Diskussion' : 'Discussion'}
-              </TabsTrigger>
-              <TabsTrigger value="funkbook" className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                {locale === 'de' ? 'Funkbuch' : 'Funkbook'}
-              </TabsTrigger>
-              <TabsTrigger value="messages" className="flex items-center gap-2">
-                <MessagesSquare className="h-4 w-4" />
-                {locale === 'de' ? 'Nachrichten' : 'Messages'}
-              </TabsTrigger>
-              <TabsTrigger value="leaderboard" className="flex items-center gap-2">
-                <Trophy className="h-4 w-4" />
-                {locale === 'de' ? 'Rangliste' : 'Leaderboard'}
-              </TabsTrigger>
-            </TabsList>
+            <div className="relative">
+              <TabsList
+                ref={tabsListRef}
+                className={cn(
+                  "flex w-full flex-nowrap gap-1 overflow-x-auto hide-scrollbar justify-start scroll-smooth touch-pan-x",
+                  (canScrollTabsLeft || canScrollTabsRight) && "pr-10"
+                )}
+              >
+                <TabsTrigger value="discussion" className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  {locale === 'de' ? 'Diskussion' : 'Discussion'}
+                </TabsTrigger>
+                <TabsTrigger value="funkbook" className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  {locale === 'de' ? 'Funkbuch' : 'Funkbook'}
+                </TabsTrigger>
+                <TabsTrigger value="messages" className="flex items-center gap-2">
+                  <MessagesSquare className="h-4 w-4" />
+                  {locale === 'de' ? 'Nachrichten' : 'Messages'}
+                </TabsTrigger>
+                <TabsTrigger value="leaderboard" className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4" />
+                  {locale === 'de' ? 'Rangliste' : 'Leaderboard'}
+                </TabsTrigger>
+              </TabsList>
+
+              {(canScrollTabsLeft || canScrollTabsRight) && (
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 pr-1 lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() => scrollTabsBy('left')}
+                    disabled={!canScrollTabsLeft}
+                    className={cn(
+                      "pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full",
+                      "bg-background/80 backdrop-blur border border-border/60 shadow-sm",
+                      !canScrollTabsLeft && "opacity-0"
+                    )}
+                    aria-label={locale === 'de' ? 'Tabs nach links' : 'Scroll tabs left'}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollTabsBy('right')}
+                    disabled={!canScrollTabsRight}
+                    className={cn(
+                      "pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full",
+                      "bg-background/80 backdrop-blur border border-border/60 shadow-sm",
+                      !canScrollTabsRight && "opacity-0"
+                    )}
+                    aria-label={locale === 'de' ? 'Tabs nach rechts' : 'Scroll tabs right'}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
               <div className="lg:col-span-8 space-y-6">
