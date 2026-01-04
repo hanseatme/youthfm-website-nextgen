@@ -642,6 +642,30 @@ export default function AdminSettingsPage() {
               Wie viele Funkbuch-Karten ein Nutzer pro Tag erstellen darf.
             </p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="funkbook_vibes_per_card">Vibes pro Funkbuch-Karte</Label>
+            <div className="flex gap-2">
+              <Input
+                id="funkbook_vibes_per_card"
+                type="number"
+                value={(settings.funkbook_vibes_per_card as number) || 5}
+                onChange={(e) => handleInputChange('funkbook_vibes_per_card', parseInt(e.target.value))}
+                min={0}
+                max={500}
+              />
+              <Button
+                variant="outline"
+                onClick={() => handleInputSave('funkbook_vibes_per_card')}
+                disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Wie viele Vibes ein Nutzer pro erstellter Funkbuch-Karte bekommt (0 = deaktiviert).
+            </p>
+          </div>
         </CardContent>
       </Card>
 

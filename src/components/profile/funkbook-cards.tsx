@@ -124,6 +124,62 @@ function getPreviewId(card: FunkbookCard) {
   return null
 }
 
+function localizeTag(locale: string, value: string) {
+  const v = value.trim()
+  const map: Record<string, { de: string; en: string }> = {
+    happy: { de: 'Happy', en: 'Happy' },
+    melancholic: { de: 'Melancholisch', en: 'Melancholic' },
+    motivating: { de: 'Motivierend', en: 'Motivating' },
+    meditative: { de: 'Meditativ', en: 'Meditative' },
+    intense: { de: 'Intens', en: 'Intense' },
+    nostalgic: { de: 'Nostalgisch', en: 'Nostalgic' },
+    dreamy: { de: 'Verträumt', en: 'Dreamy' },
+    cozy: { de: 'Gemütlich', en: 'Cozy' },
+    confident: { de: 'Selbstbewusst', en: 'Confident' },
+    angry: { de: 'Wütend', en: 'Angry' },
+    sad: { de: 'Traurig', en: 'Sad' },
+    focused: { de: 'Fokussiert', en: 'Focused' },
+    uplifting: { de: 'Aufhellend', en: 'Uplifting' },
+    romantic: { de: 'Romantisch', en: 'Romantic' },
+    calm: { de: 'Ruhig', en: 'Calm' },
+    funky: { de: 'Funky', en: 'Funky' },
+    chaotic: { de: 'Chaotisch', en: 'Chaotic' },
+    hopeful: { de: 'Hoffnungsvoll', en: 'Hopeful' },
+    work: { de: 'Arbeit', en: 'Work' },
+    sport: { de: 'Sport', en: 'Sport' },
+    evening: { de: 'Abend', en: 'Evening' },
+    morning: { de: 'Morgen', en: 'Morning' },
+    party: { de: 'Party', en: 'Party' },
+    sleep: { de: 'Schlaf', en: 'Sleep' },
+    gaming: { de: 'Gaming', en: 'Gaming' },
+    cooking: { de: 'Kochen', en: 'Cooking' },
+    cleaning: { de: 'Aufräumen', en: 'Cleaning' },
+    studying: { de: 'Lernen', en: 'Studying' },
+    walking: { de: 'Spaziergang', en: 'Walking' },
+    driving: { de: 'Autofahrt', en: 'Driving' },
+    chilling: { de: 'Chillen', en: 'Chilling' },
+    reading: { de: 'Lesen', en: 'Reading' },
+    creative: { de: 'Kreativ', en: 'Creative' },
+    date_night: { de: 'Date Night', en: 'Date night' },
+    alone: { de: 'Für mich', en: 'For me' },
+    with_friends: { de: 'Mit Leuten', en: 'With friends' },
+    commute: { de: 'Unterwegs', en: 'On the go' },
+    on_the_go: { de: 'Unterwegs', en: 'On the go' },
+    focus: { de: 'Fokus', en: 'Focus' },
+    chill: { de: 'Chill', en: 'Chill' },
+    at_home: { de: 'Zuhause', en: 'At home' },
+    in_car: { de: 'Im Auto', en: 'In the car' },
+    at_night: { de: 'Nachts', en: 'At night' },
+    before_sleep: { de: 'Vor dem Schlafen', en: 'Before sleep' },
+    with_partner: { de: 'Zu zweit', en: 'With partner' },
+    rainy_day: { de: 'Regentag', en: 'Rainy day' },
+    golden_hour: { de: 'Golden Hour', en: 'Golden hour' },
+  }
+  const hit = map[v]
+  if (!hit) return value
+  return locale === 'de' ? hit.de : hit.en
+}
+
 export function FunkbookCards({
   locale,
   cards,
@@ -268,17 +324,17 @@ export function FunkbookCards({
                     )}
                     {card.situation && (
                       <Badge variant="secondary" className="rounded-full">
-                        {card.situation}
+                        {localizeTag(locale, card.situation)}
                       </Badge>
                     )}
                     {(card.mood_tags || []).map((t) => (
                       <Badge key={`${card.id}-m-${t}`} variant="secondary" className="rounded-full">
-                        {t}
+                        {localizeTag(locale, t)}
                       </Badge>
                     ))}
                     {(card.activity_tags || []).map((t) => (
                       <Badge key={`${card.id}-a-${t}`} variant="secondary" className="rounded-full">
-                        {t}
+                        {localizeTag(locale, t)}
                       </Badge>
                     ))}
                     {showVisibilityBadges && card.visibility === 'private' && (

@@ -32,6 +32,7 @@ export async function GET() {
   const captchaEnabled = getSettingBoolean(settings, 'captcha_enabled', false)
   const captchaSiteKey = getSettingString(settings, 'captcha_site_key') || null
   const funkbookMaxCardsPerDay = getSettingNumber(settings, 'funkbook_max_cards_per_day', 2)
+  const funkbookVibesPerCard = getSettingNumber(settings, 'funkbook_vibes_per_card', 5)
 
   return NextResponse.json({
     stream_url: streamUrl,
@@ -45,5 +46,6 @@ export async function GET() {
     captcha_enabled: captchaEnabled,
     captcha_site_key: captchaSiteKey,
     funkbook_max_cards_per_day: funkbookMaxCardsPerDay,
+    funkbook_vibes_per_card: funkbookVibesPerCard,
   })
 }

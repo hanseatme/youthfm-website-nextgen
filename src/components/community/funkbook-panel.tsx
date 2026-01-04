@@ -161,6 +161,19 @@ const moodOptions = [
   { value: 'motivating', emoji: '🚀', labelDe: 'Motivierend', labelEn: 'Motivating' },
   { value: 'meditative', emoji: '🧘', labelDe: 'Meditativ', labelEn: 'Meditative' },
   { value: 'intense', emoji: '⚡', labelDe: 'Intens', labelEn: 'Intense' },
+  { value: 'nostalgic', emoji: '📼', labelDe: 'Nostalgisch', labelEn: 'Nostalgic' },
+  { value: 'dreamy', emoji: '🌙', labelDe: 'Verträumt', labelEn: 'Dreamy' },
+  { value: 'cozy', emoji: '🕯️', labelDe: 'Gemütlich', labelEn: 'Cozy' },
+  { value: 'confident', emoji: '🦁', labelDe: 'Selbstbewusst', labelEn: 'Confident' },
+  { value: 'angry', emoji: '😤', labelDe: 'Wütend', labelEn: 'Angry' },
+  { value: 'sad', emoji: '😢', labelDe: 'Traurig', labelEn: 'Sad' },
+  { value: 'focused', emoji: '🎯', labelDe: 'Fokussiert', labelEn: 'Focused' },
+  { value: 'uplifting', emoji: '🌤️', labelDe: 'Aufhellend', labelEn: 'Uplifting' },
+  { value: 'romantic', emoji: '💞', labelDe: 'Romantisch', labelEn: 'Romantic' },
+  { value: 'calm', emoji: '🫧', labelDe: 'Ruhig', labelEn: 'Calm' },
+  { value: 'funky', emoji: '🪩', labelDe: 'Funky', labelEn: 'Funky' },
+  { value: 'chaotic', emoji: '🌀', labelDe: 'Chaotisch', labelEn: 'Chaotic' },
+  { value: 'hopeful', emoji: '🌱', labelDe: 'Hoffnungsvoll', labelEn: 'Hopeful' },
 ] as const
 
 const activityOptions = [
@@ -170,23 +183,53 @@ const activityOptions = [
   { value: 'morning', emoji: '☀️', labelDe: 'Morgen', labelEn: 'Morning' },
   { value: 'party', emoji: '🎉', labelDe: 'Party', labelEn: 'Party' },
   { value: 'sleep', emoji: '😴', labelDe: 'Schlaf', labelEn: 'Sleep' },
+  { value: 'commute', emoji: '🚆', labelDe: 'Pendeln', labelEn: 'Commute' },
+  { value: 'gaming', emoji: '🎮', labelDe: 'Gaming', labelEn: 'Gaming' },
+  { value: 'cooking', emoji: '🍳', labelDe: 'Kochen', labelEn: 'Cooking' },
+  { value: 'cleaning', emoji: '🧹', labelDe: 'Aufräumen', labelEn: 'Cleaning' },
+  { value: 'studying', emoji: '📚', labelDe: 'Lernen', labelEn: 'Studying' },
+  { value: 'walking', emoji: '🚶', labelDe: 'Spaziergang', labelEn: 'Walking' },
+  { value: 'driving', emoji: '🚗', labelDe: 'Autofahrt', labelEn: 'Driving' },
+  { value: 'chilling', emoji: '🛋️', labelDe: 'Chillen', labelEn: 'Chilling' },
+  { value: 'reading', emoji: '📖', labelDe: 'Lesen', labelEn: 'Reading' },
+  { value: 'creative', emoji: '🎨', labelDe: 'Kreativ', labelEn: 'Creative' },
+  { value: 'date_night', emoji: '🍷', labelDe: 'Date Night', labelEn: 'Date night' },
 ] as const
 
 const situationOptions = [
   { value: 'alone', emoji: '🫧', labelDe: 'Für mich', labelEn: 'For me' },
   { value: 'with_friends', emoji: '🫂', labelDe: 'Mit Leuten', labelEn: 'With friends' },
-  { value: 'commute', emoji: '🚆', labelDe: 'Unterwegs', labelEn: 'On the go' },
+  { value: 'on_the_go', emoji: '🚆', labelDe: 'Unterwegs', labelEn: 'On the go' },
   { value: 'focus', emoji: '🎯', labelDe: 'Fokus', labelEn: 'Focus' },
   { value: 'chill', emoji: '🛋️', labelDe: 'Chill', labelEn: 'Chill' },
+  { value: 'at_home', emoji: '🏠', labelDe: 'Zuhause', labelEn: 'At home' },
+  { value: 'in_car', emoji: '🚗', labelDe: 'Im Auto', labelEn: 'In the car' },
+  { value: 'at_night', emoji: '🌙', labelDe: 'Nachts', labelEn: 'At night' },
+  { value: 'before_sleep', emoji: '🛌', labelDe: 'Vor dem Schlafen', labelEn: 'Before sleep' },
+  { value: 'with_partner', emoji: '💞', labelDe: 'Zu zweit', labelEn: 'With partner' },
+  { value: 'rainy_day', emoji: '🌧️', labelDe: 'Regentag', labelEn: 'Rainy day' },
+  { value: 'golden_hour', emoji: '🌇', labelDe: 'Golden Hour', labelEn: 'Golden hour' },
 ] as const
 
 function localizeTag(locale: string, value: string) {
-  const mood = moodOptions.find((m) => m.value === value)
+  const v = value.trim()
+  const mood = moodOptions.find((m) => m.value === v || m.labelDe === v || m.labelEn === v)
   if (mood) return locale === 'de' ? mood.labelDe : mood.labelEn
-  const activity = activityOptions.find((a) => a.value === value)
+  const activity = activityOptions.find((a) => a.value === v || a.labelDe === v || a.labelEn === v)
   if (activity) return locale === 'de' ? activity.labelDe : activity.labelEn
-  const situation = situationOptions.find((s) => s.value === value)
+  const situation = situationOptions.find((s) => s.value === v || s.labelDe === v || s.labelEn === v)
   if (situation) return locale === 'de' ? situation.labelDe : situation.labelEn
+  return value
+}
+
+function localizeTagWithEmoji(locale: string, value: string) {
+  const v = value.trim()
+  const mood = moodOptions.find((m) => m.value === v || m.labelDe === v || m.labelEn === v)
+  if (mood) return `${mood.emoji} ${locale === 'de' ? mood.labelDe : mood.labelEn}`
+  const activity = activityOptions.find((a) => a.value === v || a.labelDe === v || a.labelEn === v)
+  if (activity) return `${activity.emoji} ${locale === 'de' ? activity.labelDe : activity.labelEn}`
+  const situation = situationOptions.find((s) => s.value === v || s.labelDe === v || s.labelEn === v)
+  if (situation) return `${situation.emoji} ${locale === 'de' ? situation.labelDe : situation.labelEn}`
   return value
 }
 
@@ -627,18 +670,16 @@ async function renderStoryPng(args: {
   const contentX = 108
   const contentW = width - 216
 
-  // Title + date (inside card)
+  // Title (inside card)
   const titleY = cardY + 130
   const themeLine = (args.themeTitle || '').trim()
-  const themeLabel = themeLine.length ? themeLine : (args.locale === 'de' ? 'Dein Hörmoment' : 'Your listening moment')
+  const hasThemeTitle = themeLine.length > 0
 
-  ctx.fillStyle = ink
-  ctx.font = `800 ${isPoster ? 52 : 48}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`
-  ctx.fillText(truncateText(ctx, themeLabel, contentW - 160), contentX, titleY)
-
-  ctx.fillStyle = muted
-  ctx.font = '500 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto'
-  ctx.fillText(formatDayLabel(args.locale, args.date), contentX, titleY + 44)
+  if (hasThemeTitle) {
+    ctx.fillStyle = ink
+    ctx.font = `800 ${isPoster ? 52 : 48}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`
+    ctx.fillText(truncateText(ctx, themeLine, contentW - 160), contentX, titleY)
+  }
 
   // Sticker badge (top-right, not "stuck in the corner")
   const badgeR = 56
@@ -678,7 +719,7 @@ async function renderStoryPng(args: {
   }
 
   // Message box (make the note the star of the story)
-  const messageY = cardY + 250
+  const messageY = cardY + (hasThemeTitle ? 210 : 170)
   const messagePadX = 34
   const noteFontSize = isPoster ? 56 : 54
   ctx.font = `700 ${noteFontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`
@@ -704,27 +745,56 @@ async function renderStoryPng(args: {
     y += lineH
   }
 
-  const chips: string[] = []
-  if (typeof args.energyLevel === 'number') chips.push(`${args.locale === 'de' ? 'Energy' : 'Energy'} ${args.energyLevel}/10`)
-  if (args.situation) chips.push(localizeTag(args.locale, args.situation))
-  for (const m of args.moodTags || []) chips.push(localizeTag(args.locale, m))
-  for (const aTag of args.activityTags || []) chips.push(localizeTag(args.locale, aTag))
+  const songTopY = cardY + cardH - 230
+  const metaY = messageY + messageH + 26
+  const metaMaxH = songTopY - 24 - metaY
+  const metaH = Math.max(0, Math.min(220, metaMaxH))
 
-  if (chips.length) {
-    y += 14
-    ctx.fillStyle = muted
-    ctx.font = '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto'
-    const chipLine = chips.slice(0, 6).join(' • ')
-    const chipLines = wrapLines(ctx, chipLine, contentW).slice(0, 2)
-    for (const line of chipLines) {
-      ctx.fillText(line, contentX, y)
-      y += 38
+  const energyValue = typeof args.energyLevel === 'number' ? `${args.energyLevel}/10` : '—'
+  const moodValue = (args.moodTags || []).map((t) => localizeTagWithEmoji(args.locale, t)).join(', ') || '—'
+  const activityValue = (args.activityTags || []).map((t) => localizeTagWithEmoji(args.locale, t)).join(', ') || '—'
+  const contextValue = args.situation ? localizeTagWithEmoji(args.locale, args.situation) : '—'
+
+  if (metaH >= 140) {
+    ctx.fillStyle = layout === 'polaroid' ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.08)'
+    drawRoundedRect(ctx, contentX, metaY, contentW, metaH, 40)
+    ctx.fill()
+
+    const pad = 18
+    const gap = 16
+    const cellW = (contentW - pad * 2 - gap) / 2
+    const cellH = (metaH - pad * 2 - gap) / 2
+
+    const drawCell = (cx: number, cy: number, label: string, value: string) => {
+      ctx.fillStyle = layout === 'polaroid' ? 'rgba(15,23,42,0.06)' : 'rgba(0,0,0,0.12)'
+      drawRoundedRect(ctx, cx, cy, cellW, cellH, 28)
+      ctx.fill()
+
+      ctx.fillStyle = muted
+      ctx.font = '800 22px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto'
+      ctx.fillText(label, cx + 16, cy + 34)
+
+      ctx.fillStyle = ink
+      ctx.font = '800 30px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto'
+      const lines = wrapLines(ctx, value, cellW - 32).slice(0, 2)
+      if (lines[0]) ctx.fillText(lines[0], cx + 16, cy + 78)
+      if (lines[1]) ctx.fillText(lines[1], cx + 16, cy + 114)
     }
+
+    const col1 = contentX + pad
+    const col2 = contentX + pad + cellW + gap
+    const row1 = metaY + pad
+    const row2 = metaY + pad + cellH + gap
+
+    drawCell(col1, row1, args.locale === 'de' ? 'Energy' : 'Energy', energyValue)
+    drawCell(col2, row1, args.locale === 'de' ? 'Mood' : 'Mood', moodValue)
+    drawCell(col1, row2, args.locale === 'de' ? 'Aktivität' : 'Activity', activityValue)
+    drawCell(col2, row2, args.locale === 'de' ? 'Kontext' : 'Context', contextValue)
   }
 
   // Track block (more valuable, more "radio")
   if (args.style.show_song !== false && (args.songTitle || args.songArtist)) {
-    const songY = cardY + cardH - 230
+    const songY = songTopY
     const songH = 170
 
     ctx.fillStyle = layout === 'polaroid' ? 'rgba(15,23,42,0.06)' : 'rgba(0,0,0,0.18)'
@@ -757,6 +827,7 @@ async function renderStoryPng(args: {
   }
 
   // Station logo (bottom-left)
+  let logoCenterY: number | null = null
   try {
     const logo = await loadCanvasImage('/yfm-logo-neu.png')
     if (logo) {
@@ -765,6 +836,7 @@ async function renderStoryPng(args: {
       const logoH = Math.max(36, Math.round(logoW * ratio))
       const logoX = 84
       const logoY = height - 92 - 26 - logoH
+      logoCenterY = logoY + logoH / 2
       ctx.save()
       ctx.globalAlpha = 0.95
       ctx.drawImage(logo, logoX, logoY, logoW, logoH)
@@ -777,8 +849,10 @@ async function renderStoryPng(args: {
   ctx.fillStyle = 'rgba(255,255,255,0.74)'
   ctx.font = '800 30px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto'
   ctx.textAlign = 'center'
-  ctx.fillText('Youth FM - Genau Dein Ding', width / 2, height - 92)
+  ctx.textBaseline = 'middle'
+  ctx.fillText('Youth FM - Genau Dein Ding', width / 2, logoCenterY ?? (height - 92))
   ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
 
   const blob: Blob = await new Promise((resolve, reject) => {
     canvas.toBlob((b) => {
@@ -943,6 +1017,7 @@ export function FunkbookPanel() {
   const [storyBlob, setStoryBlob] = useState<Blob | null>(null)
   const [storyBusy, setStoryBusy] = useState(false)
   const [storyError, setStoryError] = useState<string | null>(null)
+  const [storyDraft, setStoryDraft] = useState<Parameters<typeof renderStoryPng>[0] | null>(null)
 
   const themeTitle = themeQuery.data
     ? (locale === 'en' && themeQuery.data.title_en ? themeQuery.data.title_en : themeQuery.data.title)
@@ -1206,29 +1281,50 @@ export function FunkbookPanel() {
     setOptionsExpanded(true)
   }
 
-  const onGenerateStory = async () => {
+  type StoryArgs = Parameters<typeof renderStoryPng>[0]
+
+  const buildComposerStoryArgs = (): StoryArgs => ({
+    locale,
+    date: selectedDate,
+    themeTitle,
+    note: note.trim().length ? note.trim().slice(0, 120) : (locale === 'de' ? 'Mein Hörmoment heute.' : 'My listening moment today.'),
+    songTitle: selectedSong?.title || null,
+    songArtist: selectedSong?.artist || null,
+    energyLevel,
+    moodTags: selectedMoodTags,
+    activityTags: selectedActivityTags,
+    situation: situation.trim().length ? situation.trim().slice(0, 60) : null,
+    style: toStyle(style),
+    authorName: profile?.display_name || profile?.username || null,
+    authorAvatarUrl: profile ? getAvatarUrl(profile.avatar_id) : null,
+  })
+
+  const buildPostcardStoryArgs = (card: PostcardRow): StoryArgs => ({
+    locale,
+    date: card.date,
+    themeTitle,
+    note: card.note?.trim().length ? card.note.trim().slice(0, 120) : (locale === 'de' ? 'Mein Hörmoment heute.' : 'My listening moment today.'),
+    songTitle: card.songs?.title || null,
+    songArtist: card.songs?.artist || null,
+    energyLevel: card.energy_level,
+    moodTags: card.mood_tags || [],
+    activityTags: card.activity_tags || [],
+    situation: card.situation?.trim().length ? card.situation.trim().slice(0, 60) : null,
+    style: toStyle(card.style),
+    authorName: card.profiles?.display_name || card.profiles?.username || (locale === 'de' ? 'Du' : 'You'),
+    authorAvatarUrl: getAvatarUrl(card.profiles?.avatar_id),
+  })
+
+  const generateStory = async (args: StoryArgs) => {
     try {
       setStoryOpen(true)
       setStoryBusy(true)
       setStoryError(null)
+      setStoryDraft(args)
       if (storyUrl) URL.revokeObjectURL(storyUrl)
       setStoryUrl(null)
       setStoryBlob(null)
-      const blob = await renderStoryPng({
-        locale,
-        date: selectedDate,
-        themeTitle,
-        note: note.trim().length ? note.trim().slice(0, 120) : (locale === 'de' ? 'Mein Hörmoment heute.' : 'My listening moment today.'),
-        songTitle: selectedSong?.title || null,
-        songArtist: selectedSong?.artist || null,
-        energyLevel,
-        moodTags: selectedMoodTags,
-        activityTags: selectedActivityTags,
-        situation: situation.trim().length ? situation.trim().slice(0, 60) : null,
-        style: toStyle(style),
-        authorName: profile?.display_name || profile?.username || null,
-        authorAvatarUrl: profile ? getAvatarUrl(profile.avatar_id) : null,
-      })
+      const blob = await renderStoryPng(args)
       setStoryBlob(blob)
       setStoryUrl(URL.createObjectURL(blob))
     } catch (e) {
@@ -1240,12 +1336,26 @@ export function FunkbookPanel() {
     }
   }
 
+  const onGenerateStory = async () => {
+    await generateStory(storyDraft ?? buildComposerStoryArgs())
+  }
+
+  const onGenerateStoryFromCard = async (card: PostcardRow) => {
+    await generateStory(buildPostcardStoryArgs(card))
+  }
+
   const moodDisplay = moodChoices.length
-    ? moodChoices.map((t) => ({ value: t, emoji: '✨', labelDe: t, labelEn: t }))
+    ? moodChoices.map((t) => {
+      const found = moodOptions.find((m) => m.value === t)
+      return found ? found : { value: t, emoji: '✨', labelDe: localizeTag('de', t), labelEn: localizeTag('en', t) }
+    })
     : [...moodOptions]
 
   const activityDisplay = activityChoices.length
-    ? activityChoices.map((t) => ({ value: t, emoji: '🎧', labelDe: t, labelEn: t }))
+    ? activityChoices.map((t) => {
+      const found = activityOptions.find((a) => a.value === t)
+      return found ? found : { value: t, emoji: '🎧', labelDe: localizeTag('de', t), labelEn: localizeTag('en', t) }
+    })
     : [...activityOptions]
 
   return (
@@ -1376,6 +1486,28 @@ export function FunkbookPanel() {
         )}
 
         <form onSubmit={onSubmit} className="space-y-4">
+          {!optionsExpanded && (
+            <div className="rounded-2xl border border-border/50 bg-muted/10 p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {locale === 'de' ? 'Funkbuch-Konfiguration' : 'Funkbook configuration'}
+                </p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {locale === 'de' ? 'Ausklappen, um alle Einstellungen zu sehen.' : 'Expand to access all settings.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="rounded-full"
+                onClick={() => setOptionsExpanded(true)}
+              >
+                <ChevronDown className="h-4 w-4 mr-2" />
+                {locale === 'de' ? 'Ausklappen' : 'Expand'}
+              </Button>
+            </div>
+          )}
           {optionsExpanded && (
             <>
           <div className="rounded-2xl border border-border/50 bg-muted/10 p-4">
@@ -1608,26 +1740,16 @@ export function FunkbookPanel() {
               className="rounded-2xl"
             />
           </div>
-            </>
-          )}
-
           <div className="rounded-2xl border border-border/50 bg-muted/10 p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <button
-                type="button"
-                className="flex items-start gap-2 min-w-0 text-left"
-                onClick={() => setOptionsExpanded((v) => !v)}
-              >
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {locale === 'de' ? 'Funkbuch-Optionen' : 'Funkbook options'}
-                  </p>
-                  <p className="text-sm font-medium truncate">
-                    {locale === 'de' ? 'Design & Export' : 'Design & export'}
-                  </p>
-                </div>
-                <ChevronDown className={cn('h-4 w-4 mt-0.5 text-muted-foreground transition-transform', optionsExpanded && 'rotate-180')} />
-              </button>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {locale === 'de' ? 'Design & Export' : 'Design & export'}
+                </p>
+                <p className="text-sm font-medium truncate">
+                  {locale === 'de' ? 'Look & Story-Layout' : 'Look & story layout'}
+                </p>
+              </div>
               <Button
                 type="button"
                 size="sm"
@@ -1851,17 +1973,17 @@ export function FunkbookPanel() {
                       </Badge>
                       {situation.trim().length > 0 && (
                         <Badge variant="secondary" className="rounded-full">
-                          {situation.trim()}
+                          {localizeTag(locale, situation.trim())}
                         </Badge>
                       )}
                       {(selectedMoodTags || []).map((t) => (
                         <Badge key={`m-preview-${t}`} variant="secondary" className="rounded-full">
-                          {t}
+                          {localizeTag(locale, t)}
                         </Badge>
                       ))}
                       {(selectedActivityTags || []).map((t) => (
                         <Badge key={`a-preview-${t}`} variant="secondary" className="rounded-full">
-                          {t}
+                          {localizeTag(locale, t)}
                         </Badge>
                       ))}
                       {visibility === 'private' && (
@@ -1902,17 +2024,17 @@ export function FunkbookPanel() {
                       </span>
                       {situation.trim().length > 0 && (
                         <span className="px-3 py-1 text-xs rounded-full bg-slate-900/10">
-                          {situation.trim()}
+                          {localizeTag(locale, situation.trim())}
                         </span>
                       )}
                       {(selectedMoodTags || []).map((t) => (
                         <span key={`m-preview-${t}`} className="px-3 py-1 text-xs rounded-full bg-slate-900/10">
-                          {t}
+                          {localizeTag(locale, t)}
                         </span>
                       ))}
                       {(selectedActivityTags || []).map((t) => (
                         <span key={`a-preview-${t}`} className="px-3 py-1 text-xs rounded-full bg-slate-900/10">
-                          {t}
+                          {localizeTag(locale, t)}
                         </span>
                       ))}
                       {visibility === 'private' && (
@@ -1956,17 +2078,17 @@ export function FunkbookPanel() {
                       </Badge>
                       {situation.trim().length > 0 && (
                         <Badge variant="secondary" className="rounded-full">
-                          {situation.trim()}
+                          {localizeTag(locale, situation.trim())}
                         </Badge>
                       )}
                       {(selectedMoodTags || []).map((t) => (
                         <Badge key={`m-preview-${t}`} variant="secondary" className="rounded-full">
-                          {t}
+                          {localizeTag(locale, t)}
                         </Badge>
                       ))}
                       {(selectedActivityTags || []).map((t) => (
                         <Badge key={`a-preview-${t}`} variant="secondary" className="rounded-full">
-                          {t}
+                          {localizeTag(locale, t)}
                         </Badge>
                       ))}
                       {visibility === 'private' && (
@@ -2007,17 +2129,17 @@ export function FunkbookPanel() {
                       </Badge>
                       {situation.trim().length > 0 && (
                         <Badge variant="secondary" className="rounded-full">
-                          {situation.trim()}
+                          {localizeTag(locale, situation.trim())}
                         </Badge>
                       )}
                       {(selectedMoodTags || []).map((t) => (
                         <Badge key={`m-preview-${t}`} variant="secondary" className="rounded-full">
-                          {t}
+                          {localizeTag(locale, t)}
                         </Badge>
                       ))}
                       {(selectedActivityTags || []).map((t) => (
                         <Badge key={`a-preview-${t}`} variant="secondary" className="rounded-full">
-                          {t}
+                          {localizeTag(locale, t)}
                         </Badge>
                       ))}
                       {visibility === 'private' && (
@@ -2059,6 +2181,8 @@ export function FunkbookPanel() {
               {editingPostcardId ? (locale === 'de' ? 'Aktualisieren' : 'Update') : (locale === 'de' ? 'Speichern' : 'Save')}
             </Button>
           </div>
+            </>
+          )}
         </form>
 
         {user && myCards.length > 0 && editingPostcardId && (
@@ -2198,6 +2322,23 @@ export function FunkbookPanel() {
                       {card.note}
                     </p>
 
+                    {user && card.user_id === user.id && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="rounded-full"
+                          onClick={() => onGenerateStoryFromCard(card)}
+                          disabled={storyBusy}
+                          title={locale === 'de' ? 'Als Instagram-Story exportieren' : 'Export as Instagram story'}
+                        >
+                          <Share2 className="h-4 w-4 mr-2" />
+                          {locale === 'de' ? 'Story' : 'Story'}
+                        </Button>
+                      </div>
+                    )}
+
                     <div className="mt-3 flex flex-wrap gap-2">
                       {typeof card.energy_level === 'number' && (
                         <Badge variant="secondary" className="rounded-full">
@@ -2206,17 +2347,17 @@ export function FunkbookPanel() {
                       )}
                       {card.situation && (
                         <Badge variant="secondary" className="rounded-full">
-                          {card.situation}
+                          {localizeTag(locale, card.situation)}
                         </Badge>
                       )}
                       {(card.mood_tags || []).map((tag) => (
                         <Badge key={`m-${card.id}-${tag}`} variant="secondary" className="rounded-full">
-                          {tag}
+                          {localizeTag(locale, tag)}
                         </Badge>
                       ))}
                       {(card.activity_tags || []).map((tag) => (
                         <Badge key={`a-${card.id}-${tag}`} variant="secondary" className="rounded-full">
-                          {tag}
+                          {localizeTag(locale, tag)}
                         </Badge>
                       ))}
                       {card.visibility === 'private' && card.user_id === user?.id && (
@@ -2322,6 +2463,7 @@ export function FunkbookPanel() {
             setStoryUrl(null)
             setStoryBlob(null)
             setStoryError(null)
+            setStoryDraft(null)
           }
         }}
       >
