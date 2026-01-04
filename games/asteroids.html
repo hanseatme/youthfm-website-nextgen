@@ -211,10 +211,11 @@
                  GAME OVER – Zuschauen…
              </div>
              
-             <!-- Powerup Status -->
-             <div id="powerup-status" class="hidden absolute top-16 left-1/2 transform -translate-x-1/2 text-center">
-                 <div class="text-yellow-400 font-bold text-xl neon-text">NITRO BOOST!</div>
-             </div>
+              <!-- Powerup Status -->
+              <div id="powerup-status" class="hidden absolute top-16 left-1/2 transform -translate-x-1/2 text-center">
+                  <div id="powerup-label" class="text-yellow-400 font-bold text-xl neon-text">NITRO BOOST!</div>
+                  <div id="powerup-timer" class="text-yellow-200 text-xs mt-1">0.0s</div>
+              </div>
 
             <div class="text-right">
                 <div class="text-xs text-gray-400">STATUS</div>
@@ -259,8 +260,10 @@
          const finalScoreDisplay = document.getElementById('final-score');
          const statusDisplay = document.getElementById('connection-status');
          const mobileControls = document.getElementById('mobile-controls');
-         const powerupStatus = document.getElementById('powerup-status');
-         const spectatorBanner = document.getElementById('spectator-banner');
+          const powerupStatus = document.getElementById('powerup-status');
+          const powerupLabel = document.getElementById('powerup-label');
+          const powerupTimer = document.getElementById('powerup-timer');
+          const spectatorBanner = document.getElementById('spectator-banner');
         
         // Joystick Elements
         const joystickZone = document.getElementById('joystick-zone');
@@ -316,6 +319,33 @@
             } catch {
                 // ignore
             }
+        }
+
+        function formatSeconds(sec) {
+            const safe = Math.max(0, Number(sec) || 0);
+            return `${safe.toFixed(1)}s`;
+        }
+
+        function showBoostStatus(type, remainingSec) {
+            if (!powerupStatus || !powerupLabel || !powerupTimer) return;
+
+            const t = String(type || 'speed');
+            const isSuper = t === 'super';
+
+            powerupLabel.textContent = isSuper ? 'SUPER BOOST!' : 'NITRO BOOST!';
+            powerupTimer.textContent = formatSeconds(remainingSec);
+
+            powerupLabel.classList.toggle('text-yellow-400', !isSuper);
+            powerupLabel.classList.toggle('text-orange-400', isSuper);
+            powerupTimer.classList.toggle('text-yellow-200', !isSuper);
+            powerupTimer.classList.toggle('text-orange-200', isSuper);
+
+            powerupStatus.classList.remove('hidden');
+        }
+
+        function hideBoostStatus() {
+            if (!powerupStatus) return;
+            powerupStatus.classList.add('hidden');
         }
 
         /**
@@ -614,13 +644,19 @@
                  this.keys = { left: false, right: false };
                  this.joystickVal = 0; // -1 (links) bis 1 (rechts)
                  
-                 this.lastGapX = 0;
-                 this.isInvincible = false;
-                 this.invincibleTimer = 0;
-                 this.baseSpeed = 1;
+                  this.lastGapX = 0;
+                  this.isInvincible = false;
+                  this.invincibleTimer = 0;
+                  this.boostType = null;
+                  this.meteorTimer = 30 + Math.random() * 60;
+                  this.baseSpeed = 1;
+                  this.boostType = null; // 'speed' | 'super' | null
 
-                // Multiplayer
-                this.mpPlayers = new Map(); // id -> {x,y,trail,score,color,display_name,isDead,isInvincible,invincibleTimer,moveBoostTimer}
+                  // Meteor shower (single + host)
+                  this.meteorTimer = 0; // seconds until next shower
+
+                 // Multiplayer
+                 this.mpPlayers = new Map(); // id -> {x,y,trail,score,color,display_name,isDead,isInvincible,invincibleTimer,moveBoostTimer}
                 this.mpInputs = new Map(); // id -> moveX (fallback / local)
                 this.mpRemoteInput = new Map(); // id -> {moveX,x,ts} (client-authoritative x)
                 this.mpShootQueue = []; // [{id,x,shotId,ts}]
@@ -718,7 +754,7 @@
                 this.keys.right = false;
                 this.joystickVal = 0;
 
-                 powerupStatus.classList.add('hidden');
+                 hideBoostStatus();
 
                  const seed =
                      (network.role === 'host' || network.role === 'client') && roomState?.room?.id
@@ -802,6 +838,35 @@
                 });
             }
 
+            spawnMeteorShower() {
+                // A short, denser burst of smaller asteroids you should shoot away.
+                const count = 7;
+                const minSize = 18;
+                const maxSize = 28;
+                const margin = 18;
+                const band = Math.max(1, canvas.width - margin * 2);
+
+                for (let i = 0; i < count; i++) {
+                    const size = minSize + Math.random() * (maxSize - minSize);
+                    const slotW = band / count;
+                    const center = margin + (i + 0.5) * slotW;
+                    const jitter = (Math.random() - 0.5) * slotW * 0.7;
+                    const x = Math.max(size / 2 + 4, Math.min(canvas.width - size / 2 - 4, center + jitter));
+                    const y = -80 - Math.random() * 220;
+                    const seed = Math.floor(Math.random() * 1000000000);
+                    this.asteroids.push({
+                        x,
+                        y,
+                        radius: size / 2,
+                        rotation: Math.random() * Math.PI * 2,
+                        rotSpeed: (Math.random() - 0.5) * 0.12,
+                        seed,
+                        points: this.createAsteroidShape(size / 2, seed),
+                        hp: 1,
+                    });
+                }
+            }
+
              createAsteroidShape(radius, seed) {
                  const safeSeed = (seed || 1) >>> 0;
                  const safeRadius = Math.max(1, Math.round((Number(radius) || 1) * 10) / 10);
@@ -826,24 +891,29 @@
              }
 
             spawnPowerup() {
+                const isSuper = Math.random() < 0.22;
+                const type = isSuper ? 'super' : 'speed';
                 this.powerups.push({
                     x: Math.random() * (canvas.width - 60) + 30,
                     y: -50,
-                    type: 'speed',
+                    type,
                     radius: 15,
                     pulse: 0
                 });
             }
 
              activatePowerup(type) {
-                 if (type === 'speed') {
-                     this.isInvincible = true;
-                     this.invincibleTimer = 4.0; 
-                     this.baseSpeed = 2.5; 
-                     powerupStatus.classList.remove('hidden');
-                     this.explode(this.player.x, this.player.y, '#ffff00', 50);
-                 }
-             }
+                  const t = String(type || 'speed');
+                  const isSuper = t === 'super';
+                  const duration = isSuper ? 8.0 : 4.0;
+
+                  this.boostType = isSuper ? 'super' : 'speed';
+                  this.isInvincible = true;
+                  this.invincibleTimer = duration;
+                  this.baseSpeed = 2.5;
+                  showBoostStatus(this.boostType, this.invincibleTimer);
+                  this.explode(this.player.x, this.player.y, isSuper ? '#ff8a00' : '#ffff00', 50);
+              }
 
              setLevelSeed(seed) {
                  const next = (Number(seed) || 1) >>> 0;
@@ -1072,19 +1142,23 @@
                               color: r.color || '#94a3b8',
                              display_name: r.display_name || null,
                              isDead: false,
-                             isInvincible: false,
-                             invincibleTimer: 0,
-                             moveBoostTimer: 0,
-                         });
-                     } else {
-                         const p = this.mpPlayers.get(r.id);
-                         p.color = r.color || p.color;
-                         p.display_name = r.display_name || p.display_name;
-                         if (p.targetX === undefined) p.targetX = p.x;
-                         if (p.targetY === undefined) p.targetY = p.y;
-                     }
-                 }
-             }
+                               isInvincible: false,
+                               invincibleTimer: 0,
+                               moveBoostTimer: 0,
+                               boostType: null,
+                               boostExpiresAt: 0,
+                          });
+                      } else {
+                          const p = this.mpPlayers.get(r.id);
+                          p.color = r.color || p.color;
+                          p.display_name = r.display_name || p.display_name;
+                          if (p.targetX === undefined) p.targetX = p.x;
+                          if (p.targetY === undefined) p.targetY = p.y;
+                          if (p.boostType === undefined) p.boostType = null;
+                          if (p.boostExpiresAt === undefined) p.boostExpiresAt = 0;
+                      }
+                  }
+              }
 
               buildWorldSnapshot() {
                   return {
@@ -1112,18 +1186,20 @@
                            y: Math.round(b.y * 10) / 10,
                            shotId: b.shotId || null,
                        })),
-                      players: Array.from(this.mpPlayers.entries()).map(([id, p]) => ({
-                          id,
-                          x: Math.round(p.x * 10) / 10,
-                          y: Math.round(p.y * 10) / 10,
-                          score: p.score,
-                          isDead: Boolean(p.isDead),
-                          isInvincible: Boolean(p.isInvincible),
-                          color: p.color,
-                          display_name: p.display_name,
-                      })),
-                  };
-              }
+                       players: Array.from(this.mpPlayers.entries()).map(([id, p]) => ({
+                           id,
+                           x: Math.round(p.x * 10) / 10,
+                           y: Math.round(p.y * 10) / 10,
+                           score: p.score,
+                           isDead: Boolean(p.isDead),
+                           isInvincible: Boolean(p.isInvincible),
+                           boostType: p.boostType || null,
+                           boostRemaining: Math.max(0, Math.round((Number(p.invincibleTimer) || 0) * 10) / 10),
+                           color: p.color,
+                           display_name: p.display_name,
+                       })),
+                   };
+               }
 
              applyWorldSnapshot(snapshot) {
                   if (!snapshot) return;
@@ -1229,12 +1305,14 @@
                              score: 0,
                              passedSeg: -1,
                              color: '#94a3b8',
-                             display_name: null,
-                             isDead: false,
-                             isInvincible: false,
-                             invincibleTimer: 0,
-                             moveBoostTimer: 0,
-                         };
+                              display_name: null,
+                              isDead: false,
+                              isInvincible: false,
+                              invincibleTimer: 0,
+                              moveBoostTimer: 0,
+                              boostType: null,
+                              boostExpiresAt: 0,
+                          };
                          const rx = Number(raw.x) || 0;
                          const ry = Number(raw.y) || canvas.height - 150;
                          next.targetX = rx;
@@ -1250,10 +1328,24 @@
                          if (!next.isDead && nextDead) {
                              next.trail = [];
                          }
-                         next.isDead = nextDead;
-                         next.isInvincible = Boolean(raw.isInvincible);
-                         this.mpPlayers.set(id, next);
-                     }
+                          next.isDead = nextDead;
+                          next.isInvincible = Boolean(raw.isInvincible);
+
+                          const boostRemaining = Number(raw.boostRemaining);
+                          const boostTypeRaw = typeof raw.boostType === 'string' ? String(raw.boostType) : null;
+                          if (next.isInvincible && Number.isFinite(boostRemaining) && boostRemaining > 0) {
+                              next.boostType = boostTypeRaw || next.boostType || 'speed';
+                              next.boostExpiresAt = this.mpWorldTime + boostRemaining * 1000;
+                              next.invincibleTimer = boostRemaining;
+                              next.moveBoostTimer = boostRemaining;
+                          } else {
+                              next.boostType = null;
+                              next.boostExpiresAt = 0;
+                              next.invincibleTimer = 0;
+                              next.moveBoostTimer = 0;
+                          }
+                          this.mpPlayers.set(id, next);
+                      }
 
                     const localNow = this.mpPlayers.get(localId);
                     if (localNow) {
@@ -1291,13 +1383,25 @@
                  this.scrollY += drift * Math.min(1, dt * 6);
                  this.lastScrollSpeed = currentScrollSpeed;
 
-                 // Local player prediction (better feel) + smooth correction towards authoritative snapshot.
-                 const localId = network.localPlayerId;
-                 const local = this.mpPlayers.get(localId);
-                 if (local && !local.isDead) {
-                     const moveSpeed = CONFIG.playerSpeed * (local.isInvincible ? 1.5 : 1);
-                     const inputX = this.getInputX();
-                     local.x += inputX * moveSpeed * dt;
+                  // Local player prediction (better feel) + smooth correction towards authoritative snapshot.
+                  const localId = network.localPlayerId;
+                  const local = this.mpPlayers.get(localId);
+
+                  if (local && !local.isDead && local.isInvincible && Number(local.boostExpiresAt) > 0) {
+                      const remaining = (Number(local.boostExpiresAt) - Date.now()) / 1000;
+                      if (remaining > 0) {
+                          showBoostStatus(local.boostType, remaining);
+                      } else {
+                          hideBoostStatus();
+                      }
+                  } else {
+                      hideBoostStatus();
+                  }
+
+                  if (local && !local.isDead) {
+                      const moveSpeed = CONFIG.playerSpeed * (local.isInvincible ? 1.5 : 1);
+                      const inputX = this.getInputX();
+                      local.x += inputX * moveSpeed * dt;
                      if (local.x < CONFIG.playerSize) local.x = CONFIG.playerSize;
                      if (local.x > canvas.width - CONFIG.playerSize) local.x = canvas.width - CONFIG.playerSize;
                      local.trail.push({ x: local.x, y: local.y, life: 1.0 });
@@ -1361,31 +1465,38 @@
                  }
              }
 
-             updateMultiplayerHost(dt) {
-                 this.mpElapsed += dt;
-                 const speedMultiplier = 1 + this.mpElapsed * 0.03;
-                 const currentScrollSpeed = CONFIG.scrollSpeedBase * speedMultiplier;
-                 this.scrollY += currentScrollSpeed * dt;
-                 this.lastScrollSpeed = currentScrollSpeed;
+              updateMultiplayerHost(dt) {
+                  this.mpElapsed += dt;
+                  const speedMultiplier = 1 + this.mpElapsed * 0.012;
+                  const currentScrollSpeed = CONFIG.scrollSpeedBase * speedMultiplier;
+                  this.scrollY += currentScrollSpeed * dt;
+                  this.lastScrollSpeed = currentScrollSpeed;
 
-                 this.ensureMultiplayerPlayers();
+                  this.ensureMultiplayerPlayers();
 
-                // local input
-                this.mpInputs.set(network.localPlayerId, this.getInputX());
+                 // local input
+                 this.mpInputs.set(network.localPlayerId, this.getInputX());
 
-                // timers
-                for (const p of this.mpPlayers.values()) {
-                    if (p.isDead) continue;
-                    if (p.isInvincible) {
-                        p.invincibleTimer -= dt;
-                        p.moveBoostTimer = p.invincibleTimer;
-                        if (p.invincibleTimer <= 0) {
-                            p.isInvincible = false;
-                            p.moveBoostTimer = 0;
-                            if (p === this.mpPlayers.get(network.localPlayerId)) powerupStatus.classList.add('hidden');
-                        }
-                    }
-                }
+                 // timers
+                 const localPlayer = this.mpPlayers.get(network.localPlayerId);
+                 for (const p of this.mpPlayers.values()) {
+                     if (p.isDead) continue;
+                     if (p.isInvincible) {
+                         if (!p.boostType) p.boostType = 'speed';
+                         p.invincibleTimer -= dt;
+                         p.moveBoostTimer = p.invincibleTimer;
+                         if (p.invincibleTimer <= 0) {
+                             p.isInvincible = false;
+                             p.invincibleTimer = 0;
+                             p.moveBoostTimer = 0;
+                             p.boostType = null;
+                             if (p === localPlayer) hideBoostStatus();
+                         } else {
+                             if (p === localPlayer) showBoostStatus(p.boostType, p.invincibleTimer);
+                         }
+                     }
+                 }
+                 if (!localPlayer || localPlayer.isDead || !localPlayer.isInvincible) hideBoostStatus();
 
                  // movement + trail
                 const localId = network.localPlayerId;
@@ -1443,9 +1554,16 @@
                     if (b.y < -50) this.bullets.splice(i, 1);
                 }
 
-                 // spawning (host only)
-                 if (Math.random() < CONFIG.spawnRates.asteroid) this.spawnAsteroid();
-                 if (Math.random() < CONFIG.spawnRates.powerup) this.spawnPowerup();
+                  // spawning (host only)
+                  if (Math.random() < CONFIG.spawnRates.asteroid) this.spawnAsteroid();
+                  if (Math.random() < CONFIG.spawnRates.powerup) this.spawnPowerup();
+
+                  // Meteor shower (every 30–90s)
+                  this.meteorTimer -= dt;
+                  if (this.meteorTimer <= 0) {
+                      this.spawnMeteorShower();
+                      this.meteorTimer = 30 + Math.random() * 60;
+                  }
 
                  // obstacles (deterministic level) + collision per player
                  const obstacles = this.getVisibleObstacles();
@@ -1524,28 +1642,32 @@
                     if (ast.y > canvas.height + 50) this.asteroids.splice(i, 1);
                 }
 
-                // powerups
-                for (let i = this.powerups.length - 1; i >= 0; i--) {
-                    const pup = this.powerups[i];
-                    pup.y += currentScrollSpeed * dt;
-                    pup.pulse += dt * 5;
+                 // powerups
+                 for (let i = this.powerups.length - 1; i >= 0; i--) {
+                     const pup = this.powerups[i];
+                     pup.y += currentScrollSpeed * dt;
+                     pup.pulse += dt * 5;
 
-                    for (const [id, p] of this.mpPlayers.entries()) {
-                        if (p.isDead) continue;
-                        const dx = p.x - pup.x;
-                        const dy = p.y - pup.y;
-                        if (Math.sqrt(dx*dx + dy*dy) < pup.radius + CONFIG.playerSize) {
-                            p.isInvincible = true;
-                            p.invincibleTimer = 4.0;
-                            p.moveBoostTimer = 4.0;
-                            if (id === network.localPlayerId) {
-                                powerupStatus.classList.remove('hidden');
-                                this.explode(p.x, p.y, '#ffff00', 50);
-                            }
-                            this.powerups.splice(i, 1);
-                            break;
-                        }
-                    }
+                     for (const [id, p] of this.mpPlayers.entries()) {
+                         if (p.isDead) continue;
+                         const dx = p.x - pup.x;
+                         const dy = p.y - pup.y;
+                         if (Math.sqrt(dx*dx + dy*dy) < pup.radius + CONFIG.playerSize) {
+                             const t = String(pup.type || 'speed');
+                             const isSuper = t === 'super';
+                             const duration = isSuper ? 8.0 : 4.0;
+                             p.isInvincible = true;
+                             p.invincibleTimer = duration;
+                             p.moveBoostTimer = duration;
+                             p.boostType = isSuper ? 'super' : 'speed';
+                             if (id === network.localPlayerId) {
+                                 showBoostStatus(p.boostType, p.invincibleTimer);
+                                 this.explode(p.x, p.y, isSuper ? '#ff8a00' : '#ffff00', 50);
+                             }
+                             this.powerups.splice(i, 1);
+                             break;
+                         }
+                     }
 
                     if (pup.y > canvas.height + 50) this.powerups.splice(i, 1);
                 }
@@ -1592,14 +1714,19 @@
                     if (this.invincibleTimer <= 0) {
                         this.isInvincible = false;
                         this.baseSpeed = 1;
-                        powerupStatus.classList.add('hidden');
+                        this.boostType = null;
+                        hideBoostStatus();
+                    } else {
+                        showBoostStatus(this.boostType, this.invincibleTimer);
                     }
+                } else {
+                    hideBoostStatus();
                 }
 
-                 this.speedMultiplier = 1 + (this.score * 0.005);
-                 const currentScrollSpeed = CONFIG.scrollSpeedBase * this.speedMultiplier * this.baseSpeed;
-                 this.scrollY += currentScrollSpeed * dt;
-                 this.lastScrollSpeed = currentScrollSpeed;
+                 this.speedMultiplier = 1 + (this.score * 0.003);
+                  const currentScrollSpeed = CONFIG.scrollSpeedBase * this.speedMultiplier * this.baseSpeed;
+                  this.scrollY += currentScrollSpeed * dt;
+                  this.lastScrollSpeed = currentScrollSpeed;
 
                 // --- SPIELER BEWEGUNG ---
                 const moveSpeed = CONFIG.playerSpeed * (this.isInvincible ? 1.5 : 1);
@@ -1619,9 +1746,16 @@
                     if (b.y < -50) this.bullets.splice(i, 1);
                 }
 
-                // --- SPAWNING ---
-                if (Math.random() < CONFIG.spawnRates.asteroid) this.spawnAsteroid();
-                if (Math.random() < CONFIG.spawnRates.powerup) this.spawnPowerup();
+                 // --- SPAWNING ---
+                 if (Math.random() < CONFIG.spawnRates.asteroid) this.spawnAsteroid();
+                 if (Math.random() < CONFIG.spawnRates.powerup) this.spawnPowerup();
+
+                 // Meteor shower (every 30–90s)
+                 this.meteorTimer -= dt;
+                 if (this.meteorTimer <= 0) {
+                     this.spawnMeteorShower();
+                     this.meteorTimer = 30 + Math.random() * 60;
+                 }
 
                  // --- OBSTACLES (deterministic level) & COLLISION ---
                  const p = this.player;
@@ -1877,9 +2011,11 @@
 
                 // Powerups
                 this.powerups.forEach(p => {
-                    ctx.shadowColor = '#ffff00';
+                    const isSuper = String(p.type || 'speed') === 'super';
+                    const color = isSuper ? '#ff8a00' : '#ffff00';
+                    ctx.shadowColor = color;
                     ctx.shadowBlur = 20;
-                    ctx.fillStyle = '#ffff00';
+                    ctx.fillStyle = color;
                     const scale = 1 + Math.sin(p.pulse) * 0.2;
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, p.radius * scale, 0, Math.PI * 2);
@@ -1887,7 +2023,7 @@
                     ctx.fillStyle = '#000';
                     ctx.font = "bold 12px Arial";
                     ctx.textAlign = "center";
-                    ctx.fillText("⚡", p.x, p.y + 4);
+                    ctx.fillText(isSuper ? "S" : "⚡", p.x, p.y + 4);
                 });
 
                  // Obstacles
