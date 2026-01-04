@@ -1,7 +1,9 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { Link } from '@/i18n/navigation'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { Menu, User, LogOut, Settings, Crown, MessagesSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,15 +15,20 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { AvatarDisplay } from '@/components/profile/avatar-display'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { ThemeToggle } from './theme-toggle'
 import { LanguageSwitcher } from './language-switcher'
 import { VibesDisplay } from '@/components/gamification/vibes-display'
 import { useAuth } from '@/lib/hooks/use-auth'
+import { cn } from '@/lib/utils'
 
 export function Header() {
+  const locale = useLocale()
   const t = useTranslations('nav')
   const { user, profile, signOut, isLoading } = useAuth()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [mobileOpen, setMobileOpen] = useState(false)
   const avatarFallback =
     profile?.display_name?.[0]?.toUpperCase() ||
     profile?.username?.[0]?.toUpperCase() ||
@@ -35,6 +42,27 @@ export function Header() {
     { href: '/community?tab=leaderboard', label: t('leaderboard') },
     { href: '/shop', label: t('shop') },
   ]
+
+  const normalizedPath = useMemo(() => {
+    const raw = pathname || '/'
+    const withoutLocale = raw.replace(/^\/[a-z]{2}(?=\/|$)/, '')
+    return withoutLocale || '/'
+  }, [pathname])
+
+  const isActive = useMemo(() => {
+    return (href: string) => {
+      const [path, query] = href.split('?')
+      if (!path) return false
+      if (path === '/') return normalizedPath === '/'
+      if (normalizedPath !== path) return false
+      if (!query) return true
+      const expected = new URLSearchParams(query)
+      for (const [k, v] of expected.entries()) {
+        if (searchParams.get(k) !== v) return false
+      }
+      return true
+    }
+  }, [normalizedPath, searchParams])
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -74,22 +102,26 @@ export function Header() {
         {/* Right side */}
         <div className="flex items-center gap-2">
           {user && profile && (
-            <VibesDisplay
-              available={profile.vibes_available}
-              streak={profile.streak_current}
-              multiplier={profile.streak_multiplier}
-            />
+            <div className="hidden lg:block">
+              <VibesDisplay
+                available={profile.vibes_available}
+                streak={profile.streak_current}
+                multiplier={profile.streak_multiplier}
+              />
+            </div>
           )}
 
-          <LanguageSwitcher />
-          <ThemeToggle />
+          <div className="hidden md:flex items-center gap-2">
+            <LanguageSwitcher />
+            <ThemeToggle />
+          </div>
 
           {isLoading ? (
             <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
           ) : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full hidden md:inline-flex">
                   <AvatarDisplay
                     avatarId={profile?.avatar_id ?? null}
                     fallback={avatarFallback}
@@ -153,7 +185,7 @@ export function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <Button variant="ghost" asChild className="hidden sm:inline-flex">
                 <Link href="/login">{t('login')}</Link>
               </Button>
@@ -164,34 +196,144 @@ export function Header() {
           )}
 
           {/* Mobile menu */}
-          <Sheet>
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label="Open menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right">
-              <nav className="flex flex-col gap-4 mt-8">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="text-lg font-medium"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-                {!user && (
-                  <>
-                    <Link href="/login" className="text-lg font-medium">
-                      {t('login')}
-                    </Link>
-                    <Link href="/register" className="text-lg font-medium">
-                      {t('register')}
-                    </Link>
-                  </>
-                )}
-              </nav>
+            <SheetContent side="right" className="p-0">
+              <div className="flex h-full flex-col">
+                <div className="p-4 pt-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <AvatarDisplay
+                      avatarId={profile?.avatar_id ?? null}
+                      fallback={avatarFallback}
+                      className="h-10 w-10"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold truncate">
+                        {user ? (profile?.display_name || profile?.username || 'User') : (locale === 'de' ? 'Gast' : 'Guest')}
+                      </div>
+                      {user && profile?.username && (
+                        <div className="text-xs text-muted-foreground truncate">@{profile.username}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {user && profile && (
+                    <div className="rounded-2xl border border-border/60 bg-muted/10 p-3">
+                      <VibesDisplay
+                        available={profile.vibes_available}
+                        streak={profile.streak_current}
+                        multiplier={profile.streak_multiplier}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 rounded-2xl border border-border/60 bg-muted/10 p-2 flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {locale === 'de' ? 'Sprache' : 'Language'}
+                      </span>
+                      <LanguageSwitcher />
+                    </div>
+                    <div className="rounded-2xl border border-border/60 bg-muted/10 p-2 flex items-center justify-between">
+                      <ThemeToggle />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-4 pb-4 space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+                    {locale === 'de' ? 'Navigation' : 'Navigation'}
+                  </div>
+                  <nav className="space-y-1">
+                    {navItems.map((item) => (
+                      <SheetClose asChild key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            'flex items-center justify-between rounded-2xl px-3 py-2 text-sm font-medium transition-colors',
+                            isActive(item.href) ? 'bg-primary/10 text-foreground' : 'hover:bg-muted/30 text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          <span className="truncate">{item.label}</span>
+                        </Link>
+                      </SheetClose>
+                    ))}
+                  </nav>
+                </div>
+
+                <div className="mt-auto p-4 border-t border-border/60 space-y-2">
+                  {user ? (
+                    <>
+                      <SheetClose asChild>
+                        <Link
+                          href="/profile"
+                          className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium hover:bg-muted/30"
+                        >
+                          <User className="h-4 w-4" />
+                          {t('profile')}
+                        </Link>
+                      </SheetClose>
+                      <SheetClose asChild>
+                        <Link
+                          href="/settings"
+                          className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium hover:bg-muted/30"
+                        >
+                          <Settings className="h-4 w-4" />
+                          {t('settings')}
+                        </Link>
+                      </SheetClose>
+                      <SheetClose asChild>
+                        <Link
+                          href="/community?tab=messages"
+                          className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium hover:bg-muted/30"
+                        >
+                          <MessagesSquare className="h-4 w-4" />
+                          {t('messages')}
+                        </Link>
+                      </SheetClose>
+                      {profile?.is_admin && (
+                        <SheetClose asChild>
+                          <Link
+                            href="/admin/dashboard"
+                            className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium hover:bg-muted/30"
+                          >
+                            <Crown className="h-4 w-4" />
+                            {t('admin')}
+                          </Link>
+                        </SheetClose>
+                      )}
+                      <Button
+                        variant="secondary"
+                        className="w-full rounded-2xl justify-start"
+                        onClick={() => {
+                          signOut()
+                          setMobileOpen(false)
+                        }}
+                      >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        {t('logout')}
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <SheetClose asChild>
+                        <Button variant="secondary" className="rounded-2xl" asChild>
+                          <Link href="/login">{t('login')}</Link>
+                        </Button>
+                      </SheetClose>
+                      <SheetClose asChild>
+                        <Button className="rounded-2xl" asChild>
+                          <Link href="/register">{t('register')}</Link>
+                        </Button>
+                      </SheetClose>
+                    </div>
+                  )}
+                </div>
+              </div>
             </SheetContent>
           </Sheet>
         </div>

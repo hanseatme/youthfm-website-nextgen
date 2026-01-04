@@ -68,7 +68,7 @@ export function ThemeOfDay({ theme, isLoading, activeDuel }: ThemeOfDayProps) {
   return (
     <div className="glass-card rounded-3xl overflow-hidden">
       {/* Hero Image */}
-      <div className="relative aspect-[21/9] sm:aspect-[16/9] md:aspect-[21/9] bg-gradient-to-br from-primary/20 to-primary/5">
+      <div className="relative aspect-[4/3] sm:aspect-[16/9] lg:aspect-[21/9] bg-gradient-to-br from-primary/20 to-primary/5">
         {theme.image_url ? (
           <Image
             src={theme.image_url}
@@ -98,10 +98,10 @@ export function ThemeOfDay({ theme, isLoading, activeDuel }: ThemeOfDayProps) {
             </p>
           )}
         </div>
-        <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 md:bottom-8 md:right-8">
+        <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 md:bottom-8 md:right-8">
           <Button
             size="lg"
-            className="rounded-full px-8 sm:px-10 py-5 sm:py-6 text-base sm:text-lg font-semibold shadow-xl shadow-primary/40 bg-primary hover:bg-primary/90"
+            className="w-full sm:w-auto justify-center rounded-full px-8 sm:px-10 py-5 sm:py-6 text-base sm:text-lg font-semibold shadow-xl shadow-primary/40 bg-primary hover:bg-primary/90"
             asChild
           >
             <Link href="/community">

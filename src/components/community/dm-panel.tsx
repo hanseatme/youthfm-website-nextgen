@@ -9,9 +9,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Send } from 'lucide-react'
+import { ArrowLeft, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link, useRouter } from '@/i18n/navigation'
+import { cn } from '@/lib/utils'
 
 type ConversationRow = {
   conversation_id: string
@@ -219,7 +220,7 @@ export function DmPanel() {
   return (
     <div className="glass-card rounded-3xl p-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
+        <div className={cn('lg:col-span-1', selectedConversationId && 'hidden lg:block')}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">{locale === 'de' ? 'Nachrichten' : 'Messages'}</h2>
             <Button variant="ghost" size="sm" onClick={() => router.refresh()}>
@@ -258,15 +259,25 @@ export function DmPanel() {
           </div>
         </div>
 
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-3">
+        <div className={cn('lg:col-span-2', !selectedConversationId && 'hidden lg:block')}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="lg:hidden"
+              onClick={() => setSelectedConversationId(null)}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {locale === 'de' ? 'Zurück' : 'Back'}
+            </Button>
             <h2 className="text-lg font-semibold">
               {selectedConversation ? selectedConversation.other_display_name : (locale === 'de' ? 'Unterhaltung' : 'Conversation')}
             </h2>
           </div>
 
           <div className="rounded-2xl border border-border/50 overflow-hidden">
-            <ScrollArea className="h-[420px]">
+            <ScrollArea className="h-[55vh] sm:h-[420px]">
               <div className="p-4 space-y-3">
                 {messagesQuery.isLoading ? (
                   <p className="text-sm text-muted-foreground">{locale === 'de' ? 'Laden...' : 'Loading...'}</p>

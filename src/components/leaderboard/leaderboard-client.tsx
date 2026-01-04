@@ -78,30 +78,33 @@ export function LeaderboardClient({ users, currentUserId, locale, showVibes = tr
           <Link
             key={profile.id}
             href={profile.username ? `/user/${profile.username}` : '#'}
-            className={`flex items-center gap-4 p-4 rounded-lg transition-colors ${
+            className={`flex flex-col gap-3 p-4 rounded-2xl transition-colors sm:flex-row sm:items-center sm:gap-4 ${
               currentUserId === profile.id ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50'
             } ${profile.username ? 'cursor-pointer' : 'cursor-default'}`}
           >
-            <div className="w-8 flex justify-center">
-              {getRankBadge(index + 1)}
-            </div>
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={getAvatarUrl(profile.avatar_id)} />
-              <AvatarFallback>
-                {profile.display_name?.[0] || profile.username?.[0] || '?'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">
-                {profile.display_name || profile.username || 'Anonymous'}
+            <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+              <div className="w-8 flex justify-center shrink-0">
+                {getRankBadge(index + 1)}
               </div>
-              {profile.location && (
-                <div className="text-sm text-muted-foreground truncate">
-                  {profile.location}
+              <Avatar className="h-10 w-10 shrink-0">
+                <AvatarImage src={getAvatarUrl(profile.avatar_id)} />
+                <AvatarFallback>
+                  {profile.display_name?.[0] || profile.username?.[0] || '?'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium truncate">
+                  {profile.display_name || profile.username || 'Anonymous'}
                 </div>
-              )}
+                {profile.location && (
+                  <div className="text-sm text-muted-foreground truncate">
+                    {profile.location}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-4">
+
+            <div className="flex items-center justify-between gap-3 sm:justify-end sm:gap-4">
               {showVibes ? (
                 <div className="flex items-center gap-1 font-semibold">
                   <Sparkles className="h-4 w-4 text-primary" />

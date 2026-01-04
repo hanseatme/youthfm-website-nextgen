@@ -17,6 +17,7 @@ import { Link, useRouter } from '@/i18n/navigation'
 import { DmPanel } from '@/components/community/dm-panel'
 import { FunkbookPanel } from '@/components/community/funkbook-panel'
 import { MessageCircle, MessagesSquare, Trophy, TrendingUp, Send, Reply, Sparkles, BookOpen } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type AvatarMap = Record<number, string>
 
@@ -418,7 +419,7 @@ export function CommunityCockpit() {
           </div>
 
           <Tabs value={tab} onValueChange={setTabAndUrl}>
-            <TabsList className="flex flex-wrap">
+            <TabsList className="flex w-full flex-nowrap gap-1 overflow-x-auto hide-scrollbar justify-start">
               <TabsTrigger value="discussion" className="flex items-center gap-2">
                 <MessageCircle className="h-4 w-4" />
                 {locale === 'de' ? 'Diskussion' : 'Discussion'}
@@ -443,7 +444,7 @@ export function CommunityCockpit() {
                   <div className="glass-card rounded-3xl p-6">
                     <div className="space-y-4">
                       <div className="rounded-2xl border border-border/50 p-4 bg-muted/20">
-                        <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                               {locale === 'de' ? 'Tagesthema' : 'Theme of the day'}
@@ -452,7 +453,7 @@ export function CommunityCockpit() {
                               {themeTitle || (locale === 'de' ? 'Heute' : 'Today')}
                             </p>
                           </div>
-                          <Button variant="secondary" className="rounded-full" asChild>
+                          <Button variant="secondary" className="rounded-full w-full sm:w-auto" asChild>
                             <Link href="/">
                               {locale === 'de' ? 'Zum Player' : 'Go to player'}
                             </Link>
@@ -494,7 +495,7 @@ export function CommunityCockpit() {
                           </p>
                         </div>
 
-                        <ScrollArea className="h-[420px]">
+                        <ScrollArea className="h-[52vh] sm:h-[420px]">
                           <div className="p-4 space-y-4">
                             {messagesQuery.isLoading ? (
                               <p className="text-sm text-muted-foreground">{locale === 'de' ? 'Laden...' : 'Loading...'}</p>
@@ -670,7 +671,7 @@ export function CommunityCockpit() {
                 </TabsContent>
               </div>
 
-              <div className="lg:col-span-4 space-y-6">
+              <div className={cn('lg:col-span-4 space-y-6', tab !== 'discussion' && 'hidden lg:block')}>
                 <div className="glass-card rounded-3xl p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
