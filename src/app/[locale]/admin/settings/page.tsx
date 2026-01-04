@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, RefreshCw, Radio, Sparkles, Clock, Shield, BookOpen } from 'lucide-react'
+import { Save, RefreshCw, Radio, Sparkles, Clock, Shield, BookOpen, Gamepad2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +26,7 @@ export default function AdminSettingsPage() {
   const [loadingSecrets, setLoadingSecrets] = useState(false)
   const [savingSecrets, setSavingSecrets] = useState(false)
   const [captchaSecretKey, setCaptchaSecretKey] = useState('')
+  const [gameserverApiKey, setGameserverApiKey] = useState('')
   const [legalPrivacy, setLegalPrivacy] = useState('')
   const [legalTerms, setLegalTerms] = useState('')
   const [loadingLegal, setLoadingLegal] = useState(false)
@@ -61,13 +62,15 @@ export default function AdminSettingsPage() {
   const fetchSecrets = async () => {
     setLoadingSecrets(true)
     try {
-      const response = await fetch('/api/admin/private-settings?keys=streamserver_api_key,captcha_secret_key')
+      const response = await fetch('/api/admin/private-settings?keys=streamserver_api_key,captcha_secret_key,gameserver_api_key')
       if (!response.ok) return
       const data = await response.json()
       const value = data?.settings?.streamserver_api_key
       setStreamserverApiKey(typeof value === 'string' ? value : '')
       const captchaValue = data?.settings?.captcha_secret_key
       setCaptchaSecretKey(typeof captchaValue === 'string' ? captchaValue : '')
+      const gameserverValue = data?.settings?.gameserver_api_key
+      setGameserverApiKey(typeof gameserverValue === 'string' ? gameserverValue : '')
     } catch (error) {
       console.error(error)
     } finally {
@@ -116,6 +119,29 @@ export default function AdminSettingsPage() {
     } catch (error) {
       console.error(error)
       toast.error('Fehler beim Speichern des Captcha Secret Keys')
+    } finally {
+      setSavingSecrets(false)
+    }
+  }
+
+  const saveGameserverApiKey = async () => {
+    setSavingSecrets(true)
+    try {
+      const response = await fetch('/api/admin/private-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'gameserver_api_key', value: gameserverApiKey }),
+      })
+
+      if (!response.ok) {
+        toast.error('Fehler beim Speichern des Game-Server API Keys')
+        return
+      }
+
+      toast.success('Game-Server API Key gespeichert')
+    } catch (error) {
+      console.error(error)
+      toast.error('Fehler beim Speichern des Game-Server API Keys')
     } finally {
       setSavingSecrets(false)
     }
@@ -408,6 +434,108 @@ export default function AdminSettingsPage() {
                 <Save className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Game Server */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Gamepad2 className="h-5 w-5" />
+            Game-Server
+          </CardTitle>
+          <CardDescription>
+            Dedizierter Server für Multiplayer-Spiele (Asteroids)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Game-Server aktivieren</p>
+              <p className="text-sm text-muted-foreground">
+                WebSocket-Verbindung zum dedizierten Game-Server verwenden
+              </p>
+            </div>
+            <Switch
+              checked={settings.gameserver_enabled as boolean ?? false}
+              onCheckedChange={(checked) => updateSetting('gameserver_enabled', checked)}
+              disabled={saving}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label htmlFor="gameserver_url">Game-Server URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="gameserver_url"
+                value={(settings.gameserver_url as string) || ''}
+                onChange={(e) => handleInputChange('gameserver_url', e.target.value)}
+                placeholder="wss://game.youthfm.de"
+              />
+              <Button
+                variant="outline"
+                onClick={() => handleInputSave('gameserver_url')}
+                disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              WebSocket-URL des Game-Servers (z.B. wss://game.youthfm.de)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="gameserver_tick_rate">Tick-Rate (Hz)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="gameserver_tick_rate"
+                type="number"
+                min={10}
+                max={60}
+                value={(settings.gameserver_tick_rate as number) || 30}
+                onChange={(e) => handleInputChange('gameserver_tick_rate', parseInt(e.target.value) || 30)}
+              />
+              <Button
+                variant="outline"
+                onClick={() => handleInputSave('gameserver_tick_rate')}
+                disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Wie oft pro Sekunde der Server den Spielzustand aktualisiert (Standard: 30)
+            </p>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label htmlFor="gameserver_api_key">API Key (Shared Secret)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="gameserver_api_key"
+                value={gameserverApiKey}
+                onChange={(e) => setGameserverApiKey(e.target.value)}
+                placeholder="min. 32 Zeichen"
+                type="password"
+                disabled={loadingSecrets}
+              />
+              <Button
+                variant="outline"
+                onClick={saveGameserverApiKey}
+                disabled={savingSecrets || loadingSecrets}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Gemeinsamer Schlüssel zur Token-Validierung (muss im Game-Server als JWT_SECRET konfiguriert sein)
+            </p>
           </div>
         </CardContent>
       </Card>

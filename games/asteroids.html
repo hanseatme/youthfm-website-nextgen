@@ -435,6 +435,259 @@
 
         const network = new NetworkManager();
 
+        /**
+         * GAME SERVER CONNECTION
+         * WebSocket-based connection to dedicated game server
+         */
+        class GameServerConnection {
+            constructor() {
+                this.ws = null;
+                this.url = null;
+                this.token = null;
+                this.roomId = null;
+                this.connected = false;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 12;
+                this.lastInputSentAt = 0;
+                this.inputThrottleMs = 33; // ~30Hz
+                this.onStateCallback = null;
+                this.onConnectedCallback = null;
+                this.onDisconnectedCallback = null;
+                this.pingIntervalId = null;
+                this.pingIntervalMs = 15000;
+                this.manualClose = false;
+                this.pendingStart = false;
+            }
+
+            connect(url, roomId, token, roundNumber = 1) {
+                if (this.ws) {
+                    this.disconnect();
+                }
+
+                this.url = url;
+                this.token = token;
+                this.roomId = roomId;
+                this.manualClose = false;
+
+                const wsUrl = `${url}/ws?room=${encodeURIComponent(roomId)}&token=${encodeURIComponent(token)}&round=${roundNumber}`;
+
+                try {
+                    this.ws = new WebSocket(wsUrl);
+                    this.ws.binaryType = 'arraybuffer';
+
+                    this.ws.onopen = () => {
+                        console.log('[GameServer] Connected');
+                        this.connected = true;
+                        this.reconnectAttempts = 0;
+                        if (this.pingIntervalId) clearInterval(this.pingIntervalId);
+                        this.pingIntervalId = setInterval(() => this.sendPing(), this.pingIntervalMs);
+
+                        if (this.pendingStart) {
+                            this.pendingStart = false;
+                            this.sendStart();
+                        }
+                        if (this.onConnectedCallback) this.onConnectedCallback();
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        this.handleMessage(event.data);
+                    };
+
+                    this.ws.onclose = (event) => {
+                        console.log('[GameServer] Disconnected', event.code);
+                        this.connected = false;
+                        if (this.pingIntervalId) clearInterval(this.pingIntervalId);
+                        this.pingIntervalId = null;
+                        this.ws = null;
+                        if (this.onDisconnectedCallback) this.onDisconnectedCallback();
+
+                        if (this.manualClose) return;
+
+                        // Attempt reconnect (also for clean closes, e.g. idle timeout)
+                        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                            this.reconnectAttempts++;
+                            const delay = Math.min(3000, 500 * this.reconnectAttempts);
+                            setTimeout(() => this.connect(url, roomId, token, roundNumber), delay);
+                        }
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('[GameServer] Error', error);
+                    };
+                } catch (err) {
+                    console.error('[GameServer] Failed to connect', err);
+                    if (this.onDisconnectedCallback) this.onDisconnectedCallback();
+                }
+            }
+
+            disconnect() {
+                if (this.ws) {
+                    this.ws.onclose = null; // Prevent reconnect
+                    this.manualClose = true;
+                    if (this.pingIntervalId) clearInterval(this.pingIntervalId);
+                    this.pingIntervalId = null;
+                    this.pendingStart = false;
+                    this.ws.close(1000, 'Client disconnect');
+                    this.ws = null;
+                }
+                this.connected = false;
+            }
+
+            handleMessage(data) {
+                try {
+                    // Decode msgpack (simplified - using JSON fallback for now)
+                    let message;
+                    if (data instanceof ArrayBuffer) {
+                        // Try to decode as msgpack
+                        const bytes = new Uint8Array(data);
+                        message = this.decodeMsgpack(bytes);
+                    } else {
+                        message = JSON.parse(data);
+                    }
+
+                    console.log('[GameServer] Received:', message?.type);
+
+                    if (!message || !message.type) return;
+
+                    switch (message.type) {
+                        case 'state':
+                            console.log('[GameServer] State update received, players:', message.payload?.players?.length);
+                            if (this.onStateCallback && message.payload) {
+                                this.onStateCallback(message.payload);
+                            }
+                            break;
+                        case 'joined':
+                            console.log('[GameServer] Joined room', message.roomId);
+                            break;
+                        case 'gameStart':
+                            console.log('[GameServer] Game started');
+                            // Start the local game when server confirms
+                            if (
+                                typeof startGame === 'function' &&
+                                typeof currentState !== 'undefined' &&
+                                currentState !== STATE.playing
+                            ) {
+                                startGame(true);
+                            }
+                            break;
+                        case 'gameEnd':
+                            console.log('[GameServer] Game ended', message.scores);
+                            // Show game over screen
+                            if (typeof currentState !== 'undefined' && currentState === STATE.playing) {
+                                currentState = STATE.gameover;
+                                if (spectatorBanner) spectatorBanner.classList.add('hidden');
+                                // Find local player's score
+                                const localScore = message.scores?.[network.localPlayerId] || 0;
+                                if (finalScoreDisplay) finalScoreDisplay.innerText = String(localScore);
+                                if (uiGameOver) uiGameOver.classList.remove('hidden');
+                                if (uiHud) uiHud.classList.add('hidden');
+                            }
+                            break;
+                        case 'error':
+                            console.error('[GameServer] Error:', message.code, message.message);
+                            break;
+                        case 'pong':
+                            // Latency measurement could be done here
+                            break;
+                    }
+                } catch (err) {
+                    console.error('[GameServer] Failed to parse message', err);
+                }
+            }
+
+            // Simple msgpack decoder for our limited message types
+            decodeMsgpack(bytes) {
+                // For simplicity, we'll use JSON encoding on both sides
+                // In production, use a proper msgpack library
+                try {
+                    const str = new TextDecoder().decode(bytes);
+                    return JSON.parse(str);
+                } catch {
+                    return null;
+                }
+            }
+
+            // Simple msgpack encoder
+            encodeMsgpack(obj) {
+                // For simplicity, we'll use JSON encoding
+                const str = JSON.stringify(obj);
+                return new TextEncoder().encode(str);
+            }
+
+            sendInput(moveX, shoot = false, shotId = null) {
+                if (!this.connected || !this.ws) return;
+
+                const now = performance.now();
+
+                // Throttle input sending
+                if (!shoot && now - this.lastInputSentAt < this.inputThrottleMs) return;
+
+                this.lastInputSentAt = now;
+
+                const message = {
+                    type: 'input',
+                    moveX: Math.max(-1, Math.min(1, moveX)),
+                    shoot: Boolean(shoot),
+                };
+                if (shoot && shotId) {
+                    message.shotId = String(shotId).slice(0, 80);
+                }
+
+                try {
+                    const encoded = this.encodeMsgpack(message);
+                    this.ws.send(encoded);
+                } catch (err) {
+                    console.error('[GameServer] Failed to send input', err);
+                }
+            }
+
+            sendPing() {
+                if (!this.connected || !this.ws) return;
+
+                const message = { type: 'ping', t: Date.now() };
+                try {
+                    const encoded = this.encodeMsgpack(message);
+                    this.ws.send(encoded);
+                } catch {
+                    // ignore
+                }
+            }
+
+            sendStart() {
+                if (!this.connected || !this.ws) {
+                    this.pendingStart = true;
+                    return;
+                }
+
+                console.log('[GameServer] Sending start request');
+                const message = { type: 'start' };
+                try {
+                    const encoded = this.encodeMsgpack(message);
+                    this.ws.send(encoded);
+                } catch (err) {
+                    console.error('[GameServer] Failed to send start', err);
+                }
+            }
+
+            onState(callback) {
+                this.onStateCallback = callback;
+            }
+
+            onConnected(callback) {
+                this.onConnectedCallback = callback;
+            }
+
+            onDisconnected(callback) {
+                this.onDisconnectedCallback = callback;
+            }
+
+            isConnected() {
+                return this.connected && this.ws && this.ws.readyState === WebSocket.OPEN;
+            }
+        }
+
+        const gameServer = new GameServerConnection();
+
         function mulberry32(seed) {
             let a = seed >>> 0;
             return function() {
@@ -765,6 +1018,36 @@
 
             shoot() {
                 if(currentState !== STATE.playing) return;
+
+                // Game server mode: send shoot to server
+                if (network.role === 'gameserver') {
+                    const id = network.localPlayerId;
+                    const p = this.mpPlayers.get(id);
+                    if (!p || p.isDead) return;
+
+                    const nowPerf = performance.now();
+                    if (nowPerf - this.lastShootBroadcastAt < 120) return;
+                    this.lastShootBroadcastAt = nowPerf;
+
+                    const shotId = `${id}:${++this.localShotSeq}:${Date.now()}`;
+
+                    // Send shoot command to game server (with shotId for reconciliation)
+                    gameServer.sendInput(this.getInputX(), true, shotId);
+
+                    // Client-side prediction: spawn bullet locally
+                    const bullet = {
+                        ownerId: id,
+                        x: p.x,
+                        y: p.y - 20,
+                        w: 4,
+                        h: 15,
+                        shotId,
+                    };
+                    this.bullets.push(bullet);
+                    this.predictedBullets.set(shotId, bullet);
+                    this.explode(p.x, p.y + 10, '#ff0055', 5);
+                    return;
+                }
 
                 if (network.role === 'client') {
                     const id = network.localPlayerId;
@@ -1105,7 +1388,7 @@
                  this.mpLocalDeadShown = true;
 
                  // Multiplayer: do not block the view; keep watching other players until everyone is dead.
-                 if (network.role === 'host' || network.role === 'client') {
+                 if (network.role === 'host' || network.role === 'client' || network.role === 'gameserver') {
                      if (spectatorBanner) {
                          spectatorBanner.textContent = `GAME OVER – Zuschauen… (Score: ${score})`;
                          spectatorBanner.classList.remove('hidden');
@@ -1210,8 +1493,13 @@
                   this.lastWorldReceivedAtPerf = performance.now();
 
                   try {
-                      statusDisplay.innerText = "ONLINE (MULTI)";
-                      statusDisplay.className = "text-xs font-bold text-cyan-400";
+                      if (network.role === 'gameserver') {
+                          statusDisplay.innerText = "GAMESERVER";
+                          statusDisplay.className = "text-xs font-bold text-green-400";
+                      } else {
+                          statusDisplay.innerText = "ONLINE (MULTI)";
+                          statusDisplay.className = "text-xs font-bold text-cyan-400";
+                      }
                   } catch {
                       // ignore
                   }
@@ -1325,7 +1613,7 @@
                          }
                          next.score = Number(raw.score) || 0;
                          next.color = raw.color || '#94a3b8';
-                         next.display_name = raw.display_name || null;
+                         next.display_name = raw.display_name || raw.displayName || null;
                          const nextDead = Boolean(raw.isDead);
                          if (!next.isDead && nextDead) {
                              next.trail = [];
@@ -1875,6 +2163,11 @@
               update(dt) {
                   if (currentState !== STATE.playing) return;
 
+                  if (network.role === 'gameserver') {
+                      this.updateGameServerClient(dt);
+                      return;
+                  }
+
                   if (network.role === 'host') {
                       this.broadcastMultiplayerInput();
                       this.updateMultiplayerHost(dt);
@@ -1889,6 +2182,106 @@
                   }
 
                   this.updateSingle(dt);
+              }
+
+              // Game server mode: only send inputs and receive authoritative state
+              updateGameServerClient(dt) {
+                  // Send input to game server
+                  const inputX = this.getInputX();
+                  gameServer.sendInput(inputX, false);
+
+                  // Update local player (client-side prediction)
+                  const localId = network.localPlayerId;
+                  const local = this.mpPlayers.get(localId);
+
+                  if (local && !local.isDead) {
+                      // Client-side prediction for responsive movement
+                      const moveSpeed = CONFIG.playerSpeed * (local.isInvincible ? 1.5 : 1);
+                      local.x += inputX * moveSpeed * dt;
+                      if (local.x < CONFIG.playerSize) local.x = CONFIG.playerSize;
+                      if (local.x > canvas.width - CONFIG.playerSize) local.x = canvas.width - CONFIG.playerSize;
+                      local.trail.push({ x: local.x, y: local.y, life: 1.0 });
+                  }
+
+                  // Smooth interpolation for remote players
+                  const remoteAlpha = Math.min(1, dt * 12);
+                  for (const [id, p] of this.mpPlayers.entries()) {
+                      if (id === localId) continue;
+                      if (typeof p.targetX === 'number') {
+                          p.x += (p.targetX - p.x) * remoteAlpha;
+                      }
+                      if (typeof p.targetY === 'number') {
+                          p.y += (p.targetY - p.y) * remoteAlpha;
+                      }
+                  }
+
+                  // Interpolate scroll position
+                  const currentScrollSpeed = Number(this.clientScrollSpeed) || CONFIG.scrollSpeedBase;
+                  this.scrollY += currentScrollSpeed * dt;
+                  const drift = this.scrollYTarget - this.scrollY;
+                  this.scrollY += drift * Math.min(1, dt * 6);
+                  this.lastScrollSpeed = currentScrollSpeed;
+
+                  // Boost status
+                  if (local && !local.isDead && local.isInvincible && Number(local.boostExpiresAt) > 0) {
+                      const remaining = (Number(local.boostExpiresAt) - Date.now()) / 1000;
+                      if (remaining > 0) {
+                          showBoostStatus(local.boostType, remaining);
+                      } else {
+                          hideBoostStatus();
+                      }
+                  } else {
+                      hideBoostStatus();
+                  }
+
+                  // Animate bullets locally
+                  for (let i = this.bullets.length - 1; i >= 0; i--) {
+                      const b = this.bullets[i];
+                      b.y -= CONFIG.bulletSpeed * dt;
+                      if (b.y < -50) this.bullets.splice(i, 1);
+                  }
+
+                  // Animate asteroids locally
+                  for (let i = this.asteroids.length - 1; i >= 0; i--) {
+                      const ast = this.asteroids[i];
+                      ast.y += (currentScrollSpeed + CONFIG.asteroidSpeedAdd) * dt;
+                      ast.rotation += ast.rotSpeed;
+                      if (ast.y > canvas.height + 50) this.asteroids.splice(i, 1);
+                  }
+
+                  // Animate powerups locally
+                  for (let i = this.powerups.length - 1; i >= 0; i--) {
+                      const pup = this.powerups[i];
+                      pup.y += currentScrollSpeed * dt;
+                      pup.pulse += dt * 5;
+                      if (pup.y > canvas.height + 50) this.powerups.splice(i, 1);
+                  }
+
+                  // Particles
+                  for (let i = this.particles.length - 1; i >= 0; i--) {
+                      const p = this.particles[i];
+                      p.x += p.vx * dt;
+                      p.y += p.vy * dt;
+                      p.life -= dt * 2;
+                      if (p.life <= 0) this.particles.splice(i, 1);
+                  }
+
+                  // Trails
+                  for (const p of this.mpPlayers.values()) {
+                      for (let i = (p.trail || []).length - 1; i >= 0; i--) {
+                          p.trail[i].life -= dt * 5;
+                          p.trail[i].y += currentScrollSpeed * dt;
+                          if (p.trail[i].life <= 0) p.trail.splice(i, 1);
+                      }
+                  }
+
+                  // Check if local player died
+                  if (local) {
+                      scoreDisplay.innerText = String(local.score || 0);
+                      if (local.isDead && !this.mpLocalDeadShown) {
+                          this.showLocalGameOver(local.score || 0);
+                      }
+                  }
               }
 
             bindInput() {
@@ -1998,11 +2391,11 @@
                     }
                 }
 
-                if (network.role === 'client' && !this.mpHasWorld) {
+                if ((network.role === 'client' || network.role === 'gameserver') && !this.mpHasWorld) {
                     ctx.fillStyle = 'rgba(255,255,255,0.6)';
                     ctx.font = "bold 16px Arial";
                     ctx.textAlign = "center";
-                    ctx.fillText("Warte auf Host…", canvas.width / 2, canvas.height / 2);
+                    ctx.fillText(network.role === 'gameserver' ? "Verbinde mit Server…" : "Warte auf Host…", canvas.width / 2, canvas.height / 2);
                     return;
                 }
 
@@ -2077,7 +2470,7 @@
                 });
 
                  // Trail
-                 if (network.role === 'host' || network.role === 'client') {
+                 if (network.role === 'host' || network.role === 'client' || network.role === 'gameserver') {
                      for (const p of this.mpPlayers.values()) {
                          if (p.isDead) continue;
                          (p.trail || []).forEach(t => {
@@ -2097,7 +2490,7 @@
                 }
 
                 // Players
-                if (network.role === 'host' || network.role === 'client') {
+                if (network.role === 'host' || network.role === 'client' || network.role === 'gameserver') {
                     const localId = network.localPlayerId;
                     const localInputTilt = this.getInputX() * 0.3;
                     for (const [id, p] of this.mpPlayers.entries()) {
@@ -2295,10 +2688,43 @@
                  if (data.payload && typeof data.payload.color === 'string') {
                      game.player.color = data.payload.color;
                  }
-                 statusDisplay.innerText = data.payload?.statusText || "ONLINE";
-                 statusDisplay.className = network.role === 'single'
-                     ? "text-xs font-bold text-green-500"
-                     : "text-xs font-bold text-cyan-400";
+
+                 // Check if game server is enabled and connect
+                 const gsUrl = data.payload?.gameServerUrl;
+                 const gsToken = data.payload?.gameServerToken;
+                 const gsRoomId = data.payload?.roomId || roomState?.room?.id;
+                 const gsRoundNumber = data.payload?.roundNumber || roomState?.room?.round_number || 1;
+
+                 if (gsUrl && gsToken && gsRoomId) {
+                     console.log('[GameServer] Attempting connection to', gsUrl);
+                     network.role = 'gameserver';
+
+                     gameServer.onConnected(() => {
+                         statusDisplay.innerText = "GAMESERVER";
+                         statusDisplay.className = "text-xs font-bold text-green-400";
+                     });
+
+                     gameServer.onDisconnected(() => {
+                         // Stay in gameserver mode and try to reconnect.
+                         console.log('[GameServer] Disconnected, reconnecting...');
+                         if (network.role === 'gameserver') {
+                             statusDisplay.innerText = "GAMESERVER (RECONNECTING)";
+                             statusDisplay.className = "text-xs font-bold text-yellow-400";
+                         }
+                     });
+
+                     gameServer.onState((snapshot) => {
+                         game.applyWorldSnapshot(snapshot);
+                     });
+
+                     gameServer.connect(gsUrl, gsRoomId, gsToken, gsRoundNumber);
+                 } else {
+                     statusDisplay.innerText = data.payload?.statusText || "ONLINE";
+                     statusDisplay.className = network.role === 'single'
+                         ? "text-xs font-bold text-green-500"
+                         : "text-xs font-bold text-cyan-400";
+                 }
+
                  renderMultiplayerOverlay();
              }
 
@@ -2355,6 +2781,10 @@
              }
 
              if (data.type === 'start') {
+                 // If connected to game server, send start signal
+                 if (network.role === 'gameserver' && gameServer.isConnected()) {
+                     gameServer.sendStart();
+                 }
                  startGame(Boolean(data.payload?.simulate));
              }
 

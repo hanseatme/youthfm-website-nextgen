@@ -10,6 +10,12 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { cn } from '@/lib/utils'
 
+// Game server settings type
+type GameServerSettings = {
+  enabled: boolean
+  url: string | null
+}
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -94,6 +100,13 @@ export function AsteroidsPanel() {
   const [room, setRoom] = useState<AsteroidsRoom | null>(null)
   const [localState, setLocalState] = useState<RemotePlayerState | null>(null)
   const [remoteStates, setRemoteStates] = useState<Record<string, RemotePlayerState>>({})
+
+  // Game server settings
+  const [gameServerSettings, setGameServerSettings] = useState<GameServerSettings>({
+    enabled: false,
+    url: null,
+  })
+  const [gameServerToken, setGameServerToken] = useState<string | null>(null)
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [iframeReady, setIframeReady] = useState(false)
@@ -372,6 +385,79 @@ export function AsteroidsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, room, mode, locale, displayName, localColor, localState?.score])
 
+  // Load game server settings
+  useEffect(() => {
+    async function loadGameServerSettings() {
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('key, value')
+          .in('key', ['gameserver_enabled', 'gameserver_url'])
+
+        if (error) {
+          console.error('Failed to load game server settings:', error)
+          return
+        }
+
+        const settings: GameServerSettings = {
+          enabled: false,
+          url: null,
+        }
+
+        for (const row of data || []) {
+          if (row.key === 'gameserver_enabled') {
+            settings.enabled = row.value === true || row.value === 'true'
+          } else if (row.key === 'gameserver_url') {
+            settings.url = typeof row.value === 'string' ? row.value : null
+          }
+        }
+
+        setGameServerSettings(settings)
+      } catch (err) {
+        console.error('Failed to load game server settings:', err)
+      }
+    }
+
+    loadGameServerSettings()
+  }, [supabase])
+
+  // Fetch game server token when entering a room with game server enabled
+  useEffect(() => {
+    async function fetchGameServerToken() {
+      if (!gameServerSettings.enabled || !gameServerSettings.url) {
+        setGameServerToken(null)
+        return
+      }
+
+      if (!room?.id || mode !== 'multi') {
+        setGameServerToken(null)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/games/asteroids/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId: room.id }),
+        })
+
+        if (!response.ok) {
+          console.error('Failed to fetch game server token:', response.status)
+          setGameServerToken(null)
+          return
+        }
+
+        const { token } = await response.json()
+        setGameServerToken(token)
+      } catch (err) {
+        console.error('Failed to fetch game server token:', err)
+        setGameServerToken(null)
+      }
+    }
+
+    fetchGameServerToken()
+  }, [gameServerSettings.enabled, gameServerSettings.url, room?.id, mode])
+
   // push room state into iframe (so UI/actions happen inside the game)
   // init iframe whenever mode/room changes
   useEffect(() => {
@@ -396,15 +482,25 @@ export function AsteroidsPanel() {
                 : (locale === 'de' ? 'ERGEBNIS' : 'RESULT'))
           : (locale === 'de' ? 'MULTI' : 'MULTI')
 
+    // Include game server info if enabled and we have a token
+    const gameServerUrl = gameServerSettings.enabled && gameServerSettings.url && gameServerToken
+      ? gameServerSettings.url
+      : null
+
     sendToGame('init', {
       playerId: user.id,
       displayName,
       color: localColor,
       statusText,
       role,
+      // Game server connection info (for multiplayer only)
+      gameServerUrl,
+      gameServerToken: gameServerUrl ? gameServerToken : null,
+      roomId: room?.id || null,
+      roundNumber: room?.round_number || 1,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [iframeReady, user?.id, mode, room?.id, room?.status, room?.vote_action, room?.code, room?.round_number, locale, displayName, localColor])
+  }, [iframeReady, user?.id, mode, room?.id, room?.status, room?.vote_action, room?.code, room?.round_number, locale, displayName, localColor, gameServerSettings.enabled, gameServerSettings.url, gameServerToken])
 
   const playersQuery = useQuery({
     queryKey: ['asteroids_room_players', room?.id],
