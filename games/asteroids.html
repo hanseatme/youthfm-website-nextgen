@@ -629,10 +629,12 @@
                 this.mpElapsed = 0;
                  this.mpHasWorld = false;
                  this.mpLocalDeadShown = false;
-                 this.mpWorldTime = 0;
-                this.lastInputBroadcastAt = 0;
+                  this.mpWorldTime = 0;
+                  this.lastInputBroadcastAt = 0;
                 this.lastShootBroadcastAt = 0;
-                this.lastWorldBroadcastAt = 0;
+                  this.lastWorldBroadcastAt = 0;
+                  this.lastWorldReceivedAtPerf = performance.now();
+                  this.lastSyncRequestAt = 0;
               }
 
             init() {
@@ -697,13 +699,15 @@
                 this.predictedBullets.clear();
                 this.mpElapsed = 0;
                  this.mpHasWorld = false;
-                this.mpLocalDeadShown = false;
-                 this.mpWorldTime = 0;
+                  this.mpLocalDeadShown = false;
+                  this.mpWorldTime = 0;
                   this.lastInputBroadcastAt = 0;
                   this.lastShootBroadcastAt = 0;
                   this.lastWorldBroadcastAt = 0;
+                  this.lastWorldReceivedAtPerf = performance.now();
+                  this.lastSyncRequestAt = 0;
 
-                 if (spectatorBanner) spectatorBanner.classList.add('hidden');
+                  if (spectatorBanner) spectatorBanner.classList.add('hidden');
                 
                 // Inputs reset
                 this.keys.left = false;
@@ -1101,10 +1105,11 @@
               }
 
              applyWorldSnapshot(snapshot) {
-                 if (!snapshot) return;
-                 const hadWorld = this.mpHasWorld;
-                 this.mpHasWorld = true;
-                 this.mpWorldTime = Number(snapshot.t) || Date.now();
+                  if (!snapshot) return;
+                  const hadWorld = this.mpHasWorld;
+                  this.mpHasWorld = true;
+                  this.mpWorldTime = Number(snapshot.t) || Date.now();
+                  this.lastWorldReceivedAtPerf = performance.now();
 
                  if (snapshot.levelSeed !== undefined) {
                      this.setLevelSeed(Number(snapshot.levelSeed) || 1);
@@ -1236,10 +1241,24 @@
              }
 
              updateMultiplayerClient(dt) {
-                 // Smoothly animate between snapshots using the last known scroll speed.
-                 const currentScrollSpeed = Number(this.clientScrollSpeed) || CONFIG.scrollSpeedBase;
-                 this.scrollY += currentScrollSpeed * dt;
-                 const drift = this.scrollYTarget - this.scrollY;
+                  const nowPerf = performance.now();
+                  if (nowPerf - (this.lastWorldReceivedAtPerf || 0) > 1500) {
+                      if (nowPerf - (this.lastSyncRequestAt || 0) > 4000) {
+                          this.lastSyncRequestAt = nowPerf;
+                          try {
+                              statusDisplay.innerText = "ONLINE (MULTI) – RECONNECTING…";
+                              statusDisplay.className = "text-xs font-bold text-yellow-400";
+                          } catch {
+                              // ignore
+                          }
+                          postToParent({ type: "requestSync" });
+                      }
+                  }
+
+                  // Smoothly animate between snapshots using the last known scroll speed.
+                  const currentScrollSpeed = Number(this.clientScrollSpeed) || CONFIG.scrollSpeedBase;
+                  this.scrollY += currentScrollSpeed * dt;
+                  const drift = this.scrollYTarget - this.scrollY;
                  // Smooth correction to avoid visible jumps when snapshots arrive late.
                  this.scrollY += drift * Math.min(1, dt * 6);
                  this.lastScrollSpeed = currentScrollSpeed;
@@ -1975,12 +1994,72 @@
         const game = new Game();
         game.init();
 
+        let frameErrorStreak = 0;
+        let lastFrameErrorAt = 0;
+
+        function reportFrameError(err) {
+            const now = Date.now();
+            if (now - lastFrameErrorAt < 1500) return;
+            lastFrameErrorAt = now;
+            try {
+                console.error('[asteroids] frame error', err);
+            } catch {
+                // ignore
+            }
+            try {
+                statusDisplay.innerText = "ONLINE (MULTI) – RECOVERING…";
+                statusDisplay.className = "text-xs font-bold text-yellow-400";
+            } catch {
+                // ignore
+            }
+            try {
+                postToParent({
+                    type: "clientError",
+                    payload: {
+                        message: String(err?.message || err),
+                        stack: String(err?.stack || ''),
+                        frameErrorStreak,
+                    },
+                });
+            } catch {
+                // ignore
+            }
+        }
+
+        window.addEventListener('error', (event) => {
+            reportFrameError(event?.error || event?.message || 'window.error');
+        });
+        window.addEventListener('unhandledrejection', (event) => {
+            reportFrameError(event?.reason || 'unhandledrejection');
+        });
+
         function loop(timestamp) {
-            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
-            lastTime = timestamp;
-            game.update(dt);
-            game.draw();
-            animationId = requestAnimationFrame(loop);
+            try {
+                const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+                lastTime = timestamp;
+                game.update(dt);
+                game.draw();
+                frameErrorStreak = 0;
+            } catch (err) {
+                frameErrorStreak += 1;
+                reportFrameError(err);
+
+                // If we keep failing every frame, attempt a soft reset back to the menu once.
+                if (frameErrorStreak >= 5) {
+                    frameErrorStreak = 0;
+                    try {
+                        uiGameOver.classList.add('hidden');
+                        uiHud.classList.add('hidden');
+                        uiMainMenu.classList.remove('hidden');
+                        currentState = STATE.menu;
+                        game.reset();
+                    } catch {
+                        // ignore
+                    }
+                }
+            } finally {
+                animationId = requestAnimationFrame(loop);
+            }
         }
         requestAnimationFrame(loop);
 
@@ -2020,9 +2099,9 @@
 
          // Parent -> iframe messages (multiplayer sync + controls)
          window.addEventListener('message', (event) => {
-             if (event.origin !== window.location.origin) return;
-             const data = event.data || {};
-             if (data.source !== PARENT_SOURCE) return;
+              if (event.origin !== window.location.origin) return;
+              const data = event.data || {};
+              if (data.source !== PARENT_SOURCE) return;
 
              if (data.type === 'init') {
                  network.setLocalPlayer(data.payload);
@@ -2072,14 +2151,25 @@
             }
 
              if (data.type === 'world') {
-                 if (network.role === 'client') {
-                     game.applyWorldSnapshot(data.payload);
+                  if (network.role === 'client') {
+                      game.applyWorldSnapshot(data.payload);
+                  }
+              }
+
+             if (data.type === 'forceWorldBroadcast') {
+                 if (network.role === 'host') {
+                     try {
+                         game.lastWorldBroadcastAt = 0;
+                         network.broadcastWorld(game.buildWorldSnapshot());
+                     } catch {
+                         // ignore
+                     }
                  }
              }
 
-            if (data.type === 'start') {
-                startGame(Boolean(data.payload?.simulate));
-            }
+             if (data.type === 'start') {
+                 startGame(Boolean(data.payload?.simulate));
+             }
 
              if (data.type === 'reset') {
                  uiGameOver.classList.add('hidden');

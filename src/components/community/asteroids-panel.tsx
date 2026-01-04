@@ -159,6 +159,7 @@ export function AsteroidsPanel() {
   }
 
   useEffect(() => {
+    let lastSyncRequestAt = 0
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
       const data = event.data as any
@@ -277,6 +278,37 @@ export function AsteroidsPanel() {
             type: 'broadcast',
             event: 'world',
             payload: { ...data.payload, ts: now },
+          })
+          .catch(() => {})
+        return
+      }
+
+      if (data.type === 'requestSync') {
+        if (mode !== 'multi' || !room || !channelRef.current) return
+        const now = Date.now()
+        if (now - lastSyncRequestAt < 2000) return
+        lastSyncRequestAt = now
+        channelRef.current
+          .send({
+            type: 'broadcast',
+            event: 'refresh',
+            payload: { roomId: room.id, reason: 'sync' },
+          })
+          .catch(() => {})
+        return
+      }
+
+      if (data.type === 'clientError') {
+        console.error('[asteroids] client error', data.payload)
+        if (mode !== 'multi' || !room || !channelRef.current) return
+        const now = Date.now()
+        if (now - lastSyncRequestAt < 2000) return
+        lastSyncRequestAt = now
+        channelRef.current
+          .send({
+            type: 'broadcast',
+            event: 'refresh',
+            payload: { roomId: room.id, reason: 'clientError' },
           })
           .catch(() => {})
         return
@@ -887,6 +919,7 @@ export function AsteroidsPanel() {
       .on('broadcast', { event: 'refresh' }, () => {
         queryClient.invalidateQueries({ queryKey: ['asteroids_room', room.id] })
         queryClient.invalidateQueries({ queryKey: ['asteroids_room_players', room.id] })
+        if (isHost) sendToGame('forceWorldBroadcast')
       })
       .subscribe(async (status: string) => {
         if (status !== 'SUBSCRIBED') return
