@@ -581,6 +581,10 @@
                                 if (finalScoreDisplay) finalScoreDisplay.innerText = String(localScore);
                                 if (uiGameOver) uiGameOver.classList.remove('hidden');
                                 if (uiHud) uiHud.classList.add('hidden');
+                                if (typeof game !== 'undefined' && !game.mpLocalDeadShown) {
+                                    game.mpLocalDeadShown = true;
+                                    network.broadcastGameOver(localScore);
+                                }
                             }
                             break;
                         case 'error':
@@ -2782,8 +2786,12 @@
 
              if (data.type === 'start') {
                  // If connected to game server, send start signal
-                 if (network.role === 'gameserver' && gameServer.isConnected()) {
-                     gameServer.sendStart();
+                 if (network.role === 'gameserver') {
+                     const isHost = roomState?.room?.host_id === network.localPlayerId;
+                     if (isHost) {
+                         gameServer.sendStart();
+                     }
+                     return;
                  }
                  startGame(Boolean(data.payload?.simulate));
              }
