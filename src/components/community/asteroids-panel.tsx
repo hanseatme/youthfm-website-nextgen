@@ -196,6 +196,8 @@ export function AsteroidsPanel() {
         if (mode !== 'multi' || !room || !channelRef.current) return
         const payload = data.payload || {}
         const moveX = Number(payload.moveX) || 0
+        const x = Number(payload.x)
+        const ts = Number(payload.ts)
 
         const now = Date.now()
         if (now - inputThrottleRef.current < 33) return
@@ -205,7 +207,12 @@ export function AsteroidsPanel() {
           .send({
             type: 'broadcast',
             event: 'input',
-            payload: { id: user?.id, moveX, ts: now },
+            payload: {
+              id: user?.id,
+              moveX,
+              x: Number.isFinite(x) ? x : null,
+              ts: Number.isFinite(ts) ? ts : now,
+            },
           })
           .catch(() => {})
         return
@@ -213,6 +220,11 @@ export function AsteroidsPanel() {
 
       if (data.type === 'shoot') {
         if (mode !== 'multi' || !room || !channelRef.current) return
+        const payload = data.payload || {}
+        const x = Number(payload.x)
+        const shotId = typeof payload.shotId === 'string' ? payload.shotId : null
+        const ts = Number(payload.ts)
+
         const now = Date.now()
         if (now - shootThrottleRef.current < 120) return
         shootThrottleRef.current = now
@@ -221,7 +233,12 @@ export function AsteroidsPanel() {
           .send({
             type: 'broadcast',
             event: 'shoot',
-            payload: { id: user?.id, ts: now },
+            payload: {
+              id: user?.id,
+              x: Number.isFinite(x) ? x : null,
+              shotId,
+              ts: Number.isFinite(ts) ? ts : now,
+            },
           })
           .catch(() => {})
         return
@@ -828,12 +845,16 @@ export function AsteroidsPanel() {
         sendToGame('start', { simulate: true })
         setRoom((prev) => (prev ? { ...prev, status: 'running' } : prev))
       })
-      .on('broadcast', { event: 'input' }, ({ payload }: { payload: { id?: string; moveX?: number } }) => {
+      .on(
+        'broadcast',
+        { event: 'input' },
+        ({ payload }: { payload: { id?: string; moveX?: number; x?: number | null; ts?: number } }) => {
         if (!isHost) return
         if (!payload?.id || payload.id === user.id) return
         sendToGame('remoteInput', payload)
-      })
-      .on('broadcast', { event: 'shoot' }, ({ payload }: { payload: { id?: string } }) => {
+        },
+      )
+      .on('broadcast', { event: 'shoot' }, ({ payload }: { payload: { id?: string; x?: number | null; shotId?: string | null; ts?: number } }) => {
         if (!isHost) return
         if (!payload?.id || payload.id === user.id) return
         sendToGame('remoteShoot', payload)

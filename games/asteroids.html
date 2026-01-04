@@ -353,13 +353,13 @@
                 postToParent({ type: "gameOver", payload: { score } });
             }
 
-             broadcastInput(moveX) {
-                 postToParent({ type: "input", payload: { moveX } });
-             }
+              broadcastInput(moveX, x, ts) {
+                  postToParent({ type: "input", payload: { moveX, x, ts } });
+              }
 
-            broadcastShoot() {
-                postToParent({ type: "shoot", payload: {} });
-            }
+             broadcastShoot(x, shotId, ts) {
+                 postToParent({ type: "shoot", payload: { x, shotId, ts } });
+             }
 
             broadcastWorld(world) {
                 postToParent({ type: "world", payload: world });
@@ -619,17 +619,21 @@
                  this.invincibleTimer = 0;
                  this.baseSpeed = 1;
 
-                // Multiplayer (host authoritative)
+                // Multiplayer
                 this.mpPlayers = new Map(); // id -> {x,y,trail,score,color,display_name,isDead,isInvincible,invincibleTimer,moveBoostTimer}
-                this.mpInputs = new Map(); // id -> moveX
-                this.mpShootQueue = new Set(); // ids that requested a shot
+                this.mpInputs = new Map(); // id -> moveX (fallback / local)
+                this.mpRemoteInput = new Map(); // id -> {moveX,x,ts} (client-authoritative x)
+                this.mpShootQueue = []; // [{id,x,shotId,ts}]
+                this.localShotSeq = 0;
+                this.predictedBullets = new Map(); // shotId -> bullet
                 this.mpElapsed = 0;
                  this.mpHasWorld = false;
                  this.mpLocalDeadShown = false;
                  this.mpWorldTime = 0;
-                 this.lastInputBroadcastAt = 0;
-                 this.lastWorldBroadcastAt = 0;
-             }
+                this.lastInputBroadcastAt = 0;
+                this.lastShootBroadcastAt = 0;
+                this.lastWorldBroadcastAt = 0;
+              }
 
             init() {
                 this.resize();
@@ -687,13 +691,17 @@
 
                  this.mpPlayers.clear();
                 this.mpInputs.clear();
-                this.mpShootQueue.clear();
+                this.mpRemoteInput.clear();
+                this.mpShootQueue = [];
+                this.localShotSeq = 0;
+                this.predictedBullets.clear();
                 this.mpElapsed = 0;
-                this.mpHasWorld = false;
+                 this.mpHasWorld = false;
                 this.mpLocalDeadShown = false;
                  this.mpWorldTime = 0;
-                 this.lastInputBroadcastAt = 0;
-                 this.lastWorldBroadcastAt = 0;
+                  this.lastInputBroadcastAt = 0;
+                  this.lastShootBroadcastAt = 0;
+                  this.lastWorldBroadcastAt = 0;
 
                  if (spectatorBanner) spectatorBanner.classList.add('hidden');
                 
@@ -715,7 +723,30 @@
                 if(currentState !== STATE.playing) return;
 
                 if (network.role === 'client') {
-                    network.broadcastShoot();
+                    const id = network.localPlayerId;
+                    const p = this.mpPlayers.get(id);
+                    if (!p || p.isDead) return;
+
+                    const nowPerf = performance.now();
+                    if (nowPerf - this.lastShootBroadcastAt < 120) return;
+                    this.lastShootBroadcastAt = nowPerf;
+
+                    const now = Date.now();
+                    const shotId = `${id}:${++this.localShotSeq}:${Math.floor(Math.random() * 1e9)}`;
+
+                    network.broadcastShoot(p.x, shotId, now);
+
+                    const bullet = {
+                        ownerId: id,
+                        x: p.x,
+                        y: p.y - 20,
+                        w: 4,
+                        h: 15,
+                        shotId,
+                    };
+                    this.bullets.push(bullet);
+                    this.predictedBullets.set(shotId, bullet);
+                    this.explode(p.x, p.y + 10, '#ff0055', 5);
                     return;
                 }
 
@@ -723,12 +754,14 @@
                     const id = network.localPlayerId;
                     const p = this.mpPlayers.get(id);
                     if (!p || p.isDead) return;
+                    const shotId = `${id}:${++this.localShotSeq}`;
                     this.bullets.push({
                         ownerId: id,
                         x: p.x,
                         y: p.y - 20,
                         w: 4,
-                        h: 15
+                        h: 15,
+                        shotId,
                     });
                     this.explode(p.x, p.y + 10, '#ff0055', 5);
                     return;
@@ -739,7 +772,8 @@
                     x: this.player.x,
                     y: this.player.y - 20,
                     w: 4,
-                    h: 15
+                    h: 15,
+                    shotId: `${network.localPlayerId}:${Date.now()}`,
                 });
                 
                 this.explode(this.player.x, this.player.y + 10, '#ff0055', 5);
@@ -934,25 +968,42 @@
                 return inputX;
             }
 
-             broadcastMultiplayerInput() {
-                 const now = performance.now();
-                 if (now - this.lastInputBroadcastAt < 33) return;
-                 this.lastInputBroadcastAt = now;
-                 network.broadcastInput(this.getInputX());
+              broadcastMultiplayerInput() {
+                  const now = performance.now();
+                  if (now - this.lastInputBroadcastAt < 33) return;
+                  this.lastInputBroadcastAt = now;
+                  const local = this.mpPlayers.get(network.localPlayerId);
+                  const x = local ? local.x : (canvas.width / 2);
+                  network.broadcastInput(this.getInputX(), x, Date.now());
+              }
+
+             setRemoteInput(payload) {
+                 const id = payload && payload.id ? String(payload.id) : null;
+                 if (!id) return;
+                 const moveX = Math.max(-1, Math.min(1, Number(payload.moveX) || 0));
+                 const x = payload && typeof payload.x === 'number' ? payload.x : NaN;
+                 const ts = payload && typeof payload.ts === 'number' ? payload.ts : NaN;
+                 this.mpInputs.set(id, moveX);
+                 if (Number.isFinite(x)) {
+                     this.mpRemoteInput.set(id, { moveX, x, ts: Number.isFinite(ts) ? ts : Date.now() });
+                 } else {
+                     this.mpRemoteInput.set(id, { moveX, x: null, ts: Number.isFinite(ts) ? ts : Date.now() });
+                 }
              }
 
-            setRemoteInput(payload) {
-                const id = payload && payload.id ? String(payload.id) : null;
-                if (!id) return;
-                const moveX = Number(payload.moveX) || 0;
-                this.mpInputs.set(id, Math.max(-1, Math.min(1, moveX)));
-            }
-
-            queueRemoteShoot(payload) {
-                const id = payload && payload.id ? String(payload.id) : null;
-                if (!id) return;
-                this.mpShootQueue.add(id);
-            }
+             queueRemoteShoot(payload) {
+                 const id = payload && payload.id ? String(payload.id) : null;
+                 if (!id) return;
+                 const x = payload && typeof payload.x === 'number' ? payload.x : NaN;
+                 const ts = payload && typeof payload.ts === 'number' ? payload.ts : NaN;
+                 const shotId = payload && typeof payload.shotId === 'string' ? String(payload.shotId) : null;
+                 this.mpShootQueue.push({
+                     id,
+                     x: Number.isFinite(x) ? x : null,
+                     ts: Number.isFinite(ts) ? ts : Date.now(),
+                     shotId,
+                 });
+             }
 
              showLocalGameOver(score) {
                  if (this.mpLocalDeadShown) return;
@@ -1030,11 +1081,12 @@
                           type: p.type,
                           radius: p.radius,
                       })),
-                      bullets: this.bullets.map((b) => ({
-                          ownerId: b.ownerId || network.localPlayerId,
-                          x: Math.round(b.x * 10) / 10,
-                          y: Math.round(b.y * 10) / 10,
-                      })),
+                       bullets: this.bullets.map((b) => ({
+                           ownerId: b.ownerId || network.localPlayerId,
+                           x: Math.round(b.x * 10) / 10,
+                           y: Math.round(b.y * 10) / 10,
+                           shotId: b.shotId || null,
+                       })),
                       players: Array.from(this.mpPlayers.entries()).map(([id, p]) => ({
                           id,
                           x: Math.round(p.x * 10) / 10,
@@ -1095,15 +1147,34 @@
                      }));
                  }
 
-                 if (Array.isArray(snapshot.bullets)) {
-                     this.bullets = snapshot.bullets.map((b) => ({
-                         ownerId: b.ownerId || null,
-                         x: Number(b.x) || 0,
-                         y: Number(b.y) || 0,
-                         w: 4,
-                         h: 15,
-                     }));
-                 }
+                  if (Array.isArray(snapshot.bullets)) {
+                      const nextBullets = snapshot.bullets.map((b) => ({
+                          ownerId: b.ownerId || null,
+                          x: Number(b.x) || 0,
+                          y: Number(b.y) || 0,
+                          w: 4,
+                          h: 15,
+                          shotId: b.shotId || null,
+                      }));
+
+                      // Keep locally predicted bullets until the host snapshot confirms them (by shotId).
+                      if (this.predictedBullets && this.predictedBullets.size > 0) {
+                          const seen = new Set(nextBullets.map((b) => b.shotId).filter(Boolean));
+                          for (const [shotId, bullet] of Array.from(this.predictedBullets.entries())) {
+                              if (seen.has(shotId)) {
+                                  this.predictedBullets.delete(shotId);
+                                  continue;
+                              }
+                              if (!bullet || bullet.y < -100) {
+                                  this.predictedBullets.delete(shotId);
+                                  continue;
+                              }
+                              nextBullets.push(bullet);
+                          }
+                      }
+
+                      this.bullets = nextBullets;
+                  }
 
                  if (Array.isArray(snapshot.players)) {
                      const localId = network.localPlayerId;
@@ -1268,31 +1339,51 @@
                     }
                 }
 
-                // movement + trail
+                 // movement + trail
+                const localId = network.localPlayerId;
                 for (const [id, p] of this.mpPlayers.entries()) {
                     if (p.isDead) continue;
-                    const moveX = this.mpInputs.get(id) || 0;
+
                     const moveSpeed = CONFIG.playerSpeed * (p.moveBoostTimer > 0 ? 1.5 : 1);
-                    p.x += moveX * moveSpeed * dt;
+
+                    if (id === localId) {
+                        const moveX = this.mpInputs.get(id) || 0;
+                        p.x += moveX * moveSpeed * dt;
+                    } else {
+                        const remote = this.mpRemoteInput.get(id);
+                        if (remote && Number.isFinite(remote.x)) {
+                            p.x = Number(remote.x);
+                        } else {
+                            const moveX = this.mpInputs.get(id) || 0;
+                            p.x += moveX * moveSpeed * dt;
+                        }
+                    }
+
                     if (p.x < CONFIG.playerSize) p.x = CONFIG.playerSize;
                     if (p.x > canvas.width - CONFIG.playerSize) p.x = canvas.width - CONFIG.playerSize;
                     p.trail.push({x: p.x, y: p.y, life: 1.0});
                 }
 
                 // queued shoots
-                for (const id of Array.from(this.mpShootQueue.values())) {
+                for (const req of this.mpShootQueue) {
+                    const id = req && req.id ? String(req.id) : null;
+                    if (!id) continue;
                     const p = this.mpPlayers.get(id);
                     if (p && !p.isDead) {
+                        const bx = Number.isFinite(req.x) ? req.x : p.x;
+                        const shotId = req && typeof req.shotId === 'string' ? String(req.shotId) : null;
                         this.bullets.push({
                             ownerId: id,
-                            x: p.x,
+                            x: bx,
                             y: p.y - 20,
                             w: 4,
-                            h: 15
+                            h: 15,
+                            shotId,
                         });
+                        this.explode(bx, p.y + 10, '#ff0055', 4);
                     }
                 }
-                this.mpShootQueue.clear();
+                this.mpShootQueue = [];
 
                 // bullets update
                 for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -1577,21 +1668,24 @@
                 network.broadcastPosition(this.player.x, this.player.y, false, this.score);
             }
 
-             update(dt) {
-                 if (currentState !== STATE.playing) return;
+              update(dt) {
+                  if (currentState !== STATE.playing) return;
 
-                 if (network.role === 'host' || network.role === 'client') {
-                     this.broadcastMultiplayerInput();
-                     if (network.role === 'host') {
-                         this.updateMultiplayerHost(dt);
-                     } else {
-                         this.updateMultiplayerClient(dt);
-                     }
-                     return;
-                 }
+                  if (network.role === 'host') {
+                      this.broadcastMultiplayerInput();
+                      this.updateMultiplayerHost(dt);
+                      return;
+                  }
 
-                 this.updateSingle(dt);
-             }
+                  if (network.role === 'client') {
+                      // Predict first, then broadcast x so the host uses the up-to-date local position.
+                      this.updateMultiplayerClient(dt);
+                      this.broadcastMultiplayerInput();
+                      return;
+                  }
+
+                  this.updateSingle(dt);
+              }
 
             bindInput() {
                 // Keyboard
