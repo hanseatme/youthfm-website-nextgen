@@ -103,6 +103,8 @@ export function AsteroidsPanel() {
   const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false)
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const reconnectAttemptRef = useRef(0)
+  const [channelNonce, setChannelNonce] = useState(0)
   const inputThrottleRef = useRef<number>(0)
   const shootThrottleRef = useRef<number>(0)
   const worldThrottleRef = useRef<number>(0)
@@ -201,7 +203,7 @@ export function AsteroidsPanel() {
         const ts = Number(payload.ts)
 
         const now = Date.now()
-        if (now - inputThrottleRef.current < 33) return
+        if (now - inputThrottleRef.current < 50) return
         inputThrottleRef.current = now
 
         channelRef.current
@@ -248,7 +250,7 @@ export function AsteroidsPanel() {
       if (data.type === 'world') {
         if (mode !== 'multi' || !room || room.host_id !== user?.id || !channelRef.current) return
         const now = Date.now()
-        if (now - worldThrottleRef.current < 80) return
+        if (now - worldThrottleRef.current < 120) return
         worldThrottleRef.current = now
 
         if (data.payload?.players && Array.isArray(data.payload.players)) {
@@ -864,6 +866,7 @@ export function AsteroidsPanel() {
       config: { presence: { key: user.id } },
     })
     const isHost = room.host_id === user.id
+    let cancelled = false
 
     channel
       .on('broadcast', { event: 'reset' }, () => {
@@ -922,20 +925,35 @@ export function AsteroidsPanel() {
         if (isHost) sendToGame('forceWorldBroadcast')
       })
       .subscribe(async (status: string) => {
-        if (status !== 'SUBSCRIBED') return
-        try {
-          await channel.track({
-            user_id: user.id,
-            display_name: displayName,
-            color: localColor,
-          })
-        } catch {
-          // ignore
+        if (cancelled) return
+
+        if (status === 'SUBSCRIBED') {
+          reconnectAttemptRef.current = 0
+          try {
+            await channel.track({
+              user_id: user.id,
+              display_name: displayName,
+              color: localColor,
+            })
+          } catch {
+            // ignore
+          }
+          return
+        }
+
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          reconnectAttemptRef.current += 1
+          const delay = Math.min(6000, 600 * reconnectAttemptRef.current)
+          window.setTimeout(() => {
+            if (cancelled) return
+            setChannelNonce((n) => n + 1)
+          }, delay)
         }
       })
 
     channelRef.current = channel
     return () => {
+      cancelled = true
       try {
         supabase.removeChannel(channel)
       } catch {
@@ -944,7 +962,20 @@ export function AsteroidsPanel() {
       channelRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id, user?.id, mode, displayName, localColor])
+  }, [room?.id, user?.id, mode, channelNonce])
+
+  useEffect(() => {
+    if (!user || mode !== 'multi') return
+    const channel = channelRef.current
+    if (!channel) return
+    channel
+      .track({
+        user_id: user.id,
+        display_name: displayName,
+        color: localColor,
+      })
+      .catch(() => {})
+  }, [user?.id, mode, displayName, localColor])
 
   const sortedPlayers = useMemo(() => {
     const merged = (playersQuery.data || [])

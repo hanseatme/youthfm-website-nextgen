@@ -630,9 +630,11 @@
                  this.mpHasWorld = false;
                  this.mpLocalDeadShown = false;
                   this.mpWorldTime = 0;
-                  this.lastInputBroadcastAt = 0;
+                this.lastInputBroadcastAt = 0;
                 this.lastShootBroadcastAt = 0;
-                  this.lastWorldBroadcastAt = 0;
+                this.lastWorldBroadcastAt = 0;
+                this.lastBroadcastX = null;
+                this.lastBroadcastMoveX = null;
                   this.lastWorldReceivedAtPerf = performance.now();
                   this.lastSyncRequestAt = 0;
               }
@@ -704,6 +706,8 @@
                   this.lastInputBroadcastAt = 0;
                   this.lastShootBroadcastAt = 0;
                   this.lastWorldBroadcastAt = 0;
+                  this.lastBroadcastX = null;
+                  this.lastBroadcastMoveX = null;
                   this.lastWorldReceivedAtPerf = performance.now();
                   this.lastSyncRequestAt = 0;
 
@@ -974,11 +978,19 @@
 
               broadcastMultiplayerInput() {
                   const now = performance.now();
-                  if (now - this.lastInputBroadcastAt < 33) return;
+                  if (now - this.lastInputBroadcastAt < 50) return;
                   this.lastInputBroadcastAt = now;
                   const local = this.mpPlayers.get(network.localPlayerId);
                   const x = local ? local.x : (canvas.width / 2);
-                  network.broadcastInput(this.getInputX(), x, Date.now());
+
+                  const moveX = this.getInputX();
+                  const xDelta = Math.abs((this.lastBroadcastX ?? x) - x);
+                  const moveDelta = Math.abs((this.lastBroadcastMoveX ?? moveX) - moveX);
+                  if (xDelta < 0.75 && moveDelta < 0.03) return;
+
+                  this.lastBroadcastX = x;
+                  this.lastBroadcastMoveX = moveX;
+                  network.broadcastInput(moveX, x, Date.now());
               }
 
              setRemoteInput(payload) {
@@ -1111,6 +1123,13 @@
                   this.mpWorldTime = Number(snapshot.t) || Date.now();
                   this.lastWorldReceivedAtPerf = performance.now();
 
+                  try {
+                      statusDisplay.innerText = "ONLINE (MULTI)";
+                      statusDisplay.className = "text-xs font-bold text-cyan-400";
+                  } catch {
+                      // ignore
+                  }
+
                  if (snapshot.levelSeed !== undefined) {
                      this.setLevelSeed(Number(snapshot.levelSeed) || 1);
                  }
@@ -1242,8 +1261,8 @@
 
              updateMultiplayerClient(dt) {
                   const nowPerf = performance.now();
-                  if (nowPerf - (this.lastWorldReceivedAtPerf || 0) > 1500) {
-                      if (nowPerf - (this.lastSyncRequestAt || 0) > 4000) {
+                  if (document.visibilityState === 'visible' && (nowPerf - (this.lastWorldReceivedAtPerf || 0) > 4000)) {
+                      if (nowPerf - (this.lastSyncRequestAt || 0) > 8000) {
                           this.lastSyncRequestAt = nowPerf;
                           try {
                               statusDisplay.innerText = "ONLINE (MULTI) – RECONNECTING…";
@@ -1371,7 +1390,10 @@
                     } else {
                         const remote = this.mpRemoteInput.get(id);
                         if (remote && Number.isFinite(remote.x)) {
-                            p.x = Number(remote.x);
+                            const now = Date.now();
+                            const ageMs = Math.max(0, Math.min(250, now - (Number(remote.ts) || now)));
+                            const predicted = Number(remote.x) + (Number(remote.moveX) || 0) * moveSpeed * (ageMs / 1000);
+                            p.x = predicted;
                         } else {
                             const moveX = this.mpInputs.get(id) || 0;
                             p.x += moveX * moveSpeed * dt;
@@ -1548,11 +1570,11 @@
 
                  // broadcast world snapshot (host)
                  const now = performance.now();
-                 if (now - this.lastWorldBroadcastAt > 80) {
-                     this.lastWorldBroadcastAt = now;
-                     network.broadcastWorld(this.buildWorldSnapshot());
-                 }
-             }
+                  if (now - this.lastWorldBroadcastAt > 120) {
+                      this.lastWorldBroadcastAt = now;
+                      network.broadcastWorld(this.buildWorldSnapshot());
+                  }
+              }
 
             updateSingle(dt) {
                 if (this.isInvincible) {
