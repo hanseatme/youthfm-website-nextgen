@@ -463,6 +463,17 @@
             }
 
             connect(url, roomId, token, roundNumber = 1) {
+                console.log('[GameServer] connect() called', { url, roomId, tokenLength: token?.length, roundNumber });
+
+                if (!url || !roomId || !token) {
+                    console.error('[GameServer] Missing required parameters:', {
+                        hasUrl: !!url,
+                        hasRoomId: !!roomId,
+                        hasToken: !!token
+                    });
+                    return;
+                }
+
                 const nextRound = Math.max(1, Number(roundNumber) || 1);
                 const sameTarget =
                     this.url === url &&
@@ -475,10 +486,12 @@
                     this.ws &&
                     (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
                 ) {
+                    console.log('[GameServer] Already connected/connecting to same target, skipping');
                     return;
                 }
 
                 if (this.ws) {
+                    console.log('[GameServer] Disconnecting existing connection before reconnect');
                     this.disconnect();
                 }
 
@@ -490,13 +503,14 @@
                 this.lastPlayerCount = 0;
 
                 const wsUrl = `${url}/ws?room=${encodeURIComponent(roomId)}&token=${encodeURIComponent(token)}&round=${nextRound}`;
+                console.log('[GameServer] Connecting to WebSocket:', wsUrl.replace(/token=[^&]+/, 'token=***'));
 
                 try {
                     this.ws = new WebSocket(wsUrl);
                     this.ws.binaryType = 'arraybuffer';
 
                     this.ws.onopen = () => {
-                        console.log('[GameServer] Connected');
+                        console.log('[GameServer] ✓ Connected successfully');
                         this.connected = true;
                         this.reconnectAttempts = 0;
                         if (this.pingIntervalId) clearInterval(this.pingIntervalId);
@@ -510,28 +524,41 @@
                     };
 
                     this.ws.onclose = (event) => {
-                        console.log('[GameServer] Disconnected', event.code);
+                        const reason = event.reason || 'No reason provided';
+                        console.warn('[GameServer] Disconnected:', {
+                            code: event.code,
+                            reason,
+                            wasClean: event.wasClean,
+                            reconnectAttempts: this.reconnectAttempts
+                        });
                         this.connected = false;
                         if (this.pingIntervalId) clearInterval(this.pingIntervalId);
                         this.pingIntervalId = null;
                         this.ws = null;
                         if (this.onDisconnectedCallback) this.onDisconnectedCallback();
 
-                        if (this.manualClose) return;
+                        if (this.manualClose) {
+                            console.log('[GameServer] Manual close, not reconnecting');
+                            return;
+                        }
 
                         // Attempt reconnect (also for clean closes, e.g. idle timeout)
                         if (this.reconnectAttempts < this.maxReconnectAttempts) {
                             this.reconnectAttempts++;
                             const delay = Math.min(3000, 500 * this.reconnectAttempts);
+                            console.log(`[GameServer] Will reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
                             setTimeout(() => this.connect(url, roomId, token, roundNumber), delay);
+                        } else {
+                            console.error('[GameServer] Max reconnect attempts reached, giving up');
                         }
                     };
 
                     this.ws.onerror = (error) => {
-                        console.error('[GameServer] Error', error);
+                        console.error('[GameServer] WebSocket error:', error);
+                        console.error('[GameServer] Connection state:', this.ws?.readyState);
                     };
                 } catch (err) {
-                    console.error('[GameServer] Failed to connect', err);
+                    console.error('[GameServer] Failed to create WebSocket:', err);
                     if (this.onDisconnectedCallback) this.onDisconnectedCallback();
                 }
             }
@@ -603,10 +630,11 @@
                                 if (finalScoreDisplay) finalScoreDisplay.innerText = String(localScore);
                                 if (uiGameOver) uiGameOver.classList.remove('hidden');
                                 if (uiHud) uiHud.classList.add('hidden');
-                                if (typeof game !== 'undefined' && !game.mpLocalDeadShown) {
+                                // Always broadcast gameOver when server ends the game
+                                if (typeof game !== 'undefined') {
                                     game.mpLocalDeadShown = true;
-                                    network.broadcastGameOver(localScore);
                                 }
+                                network.broadcastGameOver(localScore);
                             }
                             break;
                         case 'error':
@@ -640,7 +668,7 @@
                 return new TextEncoder().encode(str);
             }
 
-            sendInput(moveX, shoot = false, shotId = null) {
+            sendInput(moveX, shoot = false, shotId = null, x = null) {
                 if (!this.connected || !this.ws) return;
 
                 const now = performance.now();
@@ -655,6 +683,10 @@
                     moveX: Math.max(-1, Math.min(1, moveX)),
                     shoot: Boolean(shoot),
                 };
+                // Include client's authoritative x position to prevent drift
+                if (typeof x === 'number' && Number.isFinite(x)) {
+                    message.x = x;
+                }
                 if (shoot && shotId) {
                     message.shotId = String(shotId).slice(0, 80);
                 }
@@ -1075,8 +1107,8 @@
 
                     const shotId = `${id}:${++this.localShotSeq}:${Date.now()}`;
 
-                    // Send shoot command to game server (with shotId for reconciliation)
-                    gameServer.sendInput(this.getInputX(), true, shotId);
+                    // Send shoot command to game server (with shotId for reconciliation and x for position sync)
+                    gameServer.sendInput(this.getInputX(), true, shotId, p.x);
 
                     // Client-side prediction: spawn bullet locally
                     const bullet = {
@@ -1688,7 +1720,11 @@
 
                         if (!prevLocalDead && localNow.isDead) {
                             this.showLocalGameOver(localNow.score || 0);
-                            network.broadcastGameOver(localNow.score || 0);
+                            // In gameserver mode, don't broadcast gameOver until server sends gameEnd
+                            // The server will notify all players when everyone is dead
+                            if (network.role !== 'gameserver') {
+                                network.broadcastGameOver(localNow.score || 0);
+                            }
                         }
                     }
                  }
@@ -2047,7 +2083,10 @@
                     network.broadcastPosition(local.x, local.y, local.isDead, local.score);
                     if (local.isDead && !this.mpLocalDeadShown) {
                         this.showLocalGameOver(local.score);
-                        network.broadcastGameOver(local.score);
+                        // In gameserver mode, don't broadcast gameOver until server sends gameEnd
+                        if (network.role !== 'gameserver') {
+                            network.broadcastGameOver(local.score);
+                        }
                     }
                 }
 
@@ -2230,13 +2269,10 @@
 
               // Game server mode: only send inputs and receive authoritative state
               updateGameServerClient(dt) {
-                  // Send input to game server
-                  const inputX = this.getInputX();
-                  gameServer.sendInput(inputX, false);
-
-                  // Update local player (client-side prediction)
+                  // Update local player (client-side prediction) first to get current x
                   const localId = network.localPlayerId;
                   const local = this.mpPlayers.get(localId);
+                  const inputX = this.getInputX();
 
                   if (local && !local.isDead) {
                       // Client-side prediction for responsive movement
@@ -2246,6 +2282,10 @@
                       if (local.x > canvas.width - CONFIG.playerSize) local.x = canvas.width - CONFIG.playerSize;
                       local.trail.push({ x: local.x, y: local.y, life: 1.0 });
                   }
+
+                  // Send input to game server (with authoritative x position to prevent drift)
+                  const playerX = local ? local.x : null;
+                  gameServer.sendInput(inputX, false, null, playerX);
 
                   // Smooth interpolation for remote players
                   const remoteAlpha = Math.min(1, dt * 12);
@@ -2728,6 +2768,15 @@
               if (data.source !== PARENT_SOURCE) return;
 
              if (data.type === 'init') {
+                 console.log('[Init] Received init message:', {
+                     playerId: data.payload?.playerId,
+                     role: data.payload?.role,
+                     hasGameServerUrl: !!data.payload?.gameServerUrl,
+                     hasGameServerToken: !!data.payload?.gameServerToken,
+                     roomId: data.payload?.roomId,
+                     roundNumber: data.payload?.roundNumber
+                 });
+
                  network.setLocalPlayer(data.payload);
                  if (data.payload && typeof data.payload.color === 'string') {
                      game.player.color = data.payload.color;
@@ -2740,7 +2789,7 @@
                  const gsRoundNumber = data.payload?.roundNumber || roomState?.room?.round_number || 1;
 
                  if (gsUrl && gsToken && gsRoomId) {
-                     console.log('[GameServer] Attempting connection to', gsUrl);
+                     console.log('[GameServer] All parameters present, attempting connection to', gsUrl);
                      network.role = 'gameserver';
 
                      gameServer.onConnected(() => {
@@ -2763,6 +2812,12 @@
 
                      gameServer.connect(gsUrl, gsRoomId, gsToken, gsRoundNumber);
                  } else {
+                     console.log('[Init] GameServer not available, using fallback mode:', {
+                         role: network.role,
+                         missingUrl: !gsUrl,
+                         missingToken: !gsToken,
+                         missingRoomId: !gsRoomId
+                     });
                      statusDisplay.innerText = data.payload?.statusText || "ONLINE";
                      statusDisplay.className = network.role === 'single'
                          ? "text-xs font-bold text-green-500"
@@ -2825,8 +2880,36 @@
              }
 
             if (data.type === 'start') {
-                // If connected to game server, send start signal
+                const newRoundNumber = Number(data.payload?.roundNumber) || 1;
+                const newRoomId = data.payload?.roomId || null;
+                const newGsUrl = data.payload?.gameServerUrl || null;
+                const newGsToken = data.payload?.gameServerToken || null;
+
+                console.log('[Start] Received start message:', {
+                    roundNumber: newRoundNumber,
+                    roomId: newRoomId,
+                    hasGsUrl: !!newGsUrl,
+                    hasGsToken: !!newGsToken,
+                    currentRole: network.role,
+                    currentRound: gameServer.roundNumber,
+                    isConnected: gameServer.connected
+                });
+
+                // If we're in gameserver mode (already connected or have connection info)
                 if (network.role === 'gameserver') {
+                    let needsReconnect = false;
+
+                    // If we have new gameserver info and round changed, reconnect first
+                    if (newGsUrl && newGsToken && newRoomId) {
+                        const roundChanged = gameServer.roundNumber !== newRoundNumber;
+                        if (roundChanged) {
+                            console.log('[Start] Round changed, reconnecting to gameserver with new round:', newRoundNumber);
+                            gameServer.connect(newGsUrl, newRoomId, newGsToken, newRoundNumber);
+                            needsReconnect = true;
+                        }
+                    }
+
+                    // Send start signal to gameserver (host only)
                     const isHost = roomState?.room?.host_id === network.localPlayerId;
                     if (isHost) {
                         const expectedPlayers =
@@ -2835,10 +2918,17 @@
                             Number(roomState?.room?.player_count) ||
                             network.getRoster().length ||
                             1;
-                        gameServer.sendStart(expectedPlayers);
+                        // Delay if we need to wait for reconnection
+                        const delay = needsReconnect ? 200 : 0;
+                        console.log('[Start] Host sending start to gameserver, delay:', delay);
+                        setTimeout(() => {
+                            gameServer.sendStart(expectedPlayers);
+                        }, delay);
                     }
                     return;
                 }
+
+                // Fallback for non-gameserver mode
                 startGame(Boolean(data.payload?.simulate));
             }
 

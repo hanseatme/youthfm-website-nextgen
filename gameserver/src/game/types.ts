@@ -144,7 +144,7 @@ export interface PlayerSnapshot {
 
 // Network Message Types
 export type ClientMessage =
-  | { type: 'input'; moveX: number; shoot?: boolean; shotId?: string }
+  | { type: 'input'; moveX: number; x?: number; shoot?: boolean; shotId?: string }
   | { type: 'ping'; t: number }
   | { type: 'start' };
 

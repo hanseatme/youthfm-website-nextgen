@@ -29,10 +29,13 @@ export function decodeClientMessage(data: ArrayBuffer): ClientMessage | null {
           typeof decoded.shotId === 'string' && decoded.shotId.length > 0
             ? decoded.shotId.slice(0, 80)
             : undefined;
+        // Client sends authoritative x position to prevent drift from different update rates
+        const x = typeof decoded.x === 'number' ? decoded.x : undefined;
         return {
           type: 'input',
           moveX: typeof decoded.moveX === 'number' ? Math.max(-1, Math.min(1, decoded.moveX)) : 0,
           shoot: Boolean(decoded.shoot),
+          ...(x !== undefined ? { x } : {}),
           ...(shotId ? { shotId } : {}),
         };
       }

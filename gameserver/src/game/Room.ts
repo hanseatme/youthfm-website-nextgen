@@ -30,7 +30,7 @@ export interface Room {
   roundNumber: number;
   state: RoomState;
   connections: Map<string, PlayerConnection>;
-  playerInputs: Map<string, { moveX: number; shoot: boolean; shotId: string | null }>;
+  playerInputs: Map<string, { moveX: number; x: number | null; shoot: boolean; shotId: string | null }>;
   lastBroadcastTime: number;
   tickInterval: ReturnType<typeof setInterval> | null;
 }
@@ -100,7 +100,7 @@ export class RoomManager {
 
     room.playerInputs.clear();
     for (const playerId of room.connections.keys()) {
-      room.playerInputs.set(playerId, { moveX: 0, shoot: false, shotId: null });
+      room.playerInputs.set(playerId, { moveX: 0, x: null, shoot: false, shotId: null });
     }
 
     log.info(`Room ${room.id} reset for round ${roundNumber}`);
@@ -165,7 +165,7 @@ export class RoomManager {
     const previousWs = room.connections.get(playerId)?.ws || null;
     const connection = createPlayerConnection(ws, playerId, roomId);
     room.connections.set(playerId, connection);
-    room.playerInputs.set(playerId, { moveX: 0, shoot: false, shotId: null });
+    room.playerInputs.set(playerId, { moveX: 0, x: null, shoot: false, shotId: null });
 
     if (previousWs && previousWs !== ws) {
       try {
@@ -213,15 +213,12 @@ export class RoomManager {
       return;
     }
 
-    // During a running match we keep the player in the state (as dead) so:
-    // - remaining players can still finish the match deterministically
-    // - reconnecting players can spectate the rest of the round
+    // During a running match, DON'T immediately mark player as dead.
+    // The inactivity timeout (15 seconds) will handle truly disconnected players.
+    // This allows players to reconnect quickly (e.g., during round transitions) without being killed.
     if (room.state.status === 'running') {
-      const player = room.state.players.get(playerId);
-      if (player) {
-        player.isDead = true;
-        player.trail = [];
-      }
+      // Keep player in state, inactivity timeout will mark them dead if they don't reconnect
+      log.debug(`Player ${playerId.slice(0, 8)} disconnected during running game, will timeout if no reconnect`);
     } else {
       // Remove from game state
       removePlayer(room.state, playerId);
@@ -266,11 +263,17 @@ export class RoomManager {
     // Ensure input slots exist for all current players (reconnect-safe).
     for (const playerId of room.state.players.keys()) {
       if (!room.playerInputs.has(playerId)) {
-        room.playerInputs.set(playerId, { moveX: 0, shoot: false, shotId: null });
+        room.playerInputs.set(playerId, { moveX: 0, x: null, shoot: false, shotId: null });
       }
     }
 
     startGame(room.state);
+
+    // Reset lastInputTime for all connections to prevent immediate death from stale timestamps
+    const now = Date.now();
+    for (const connection of room.connections.values()) {
+      connection.lastInputTime = now;
+    }
 
     // Log game start
     const playerNames = Array.from(room.state.players.values())
@@ -301,8 +304,8 @@ export class RoomManager {
     handleMessage(
       connection,
       data,
-      (id, moveX, shoot, shotId) => {
-        room.playerInputs.set(id, { moveX, shoot, shotId });
+      (id, moveX, x, shoot, shotId) => {
+        room.playerInputs.set(id, { moveX, x, shoot, shotId });
       },
       (id) => {
         // Handle start request from client
@@ -335,12 +338,16 @@ export class RoomManager {
       for (const [playerId, player] of room.state.players) {
         if (player.isDead) continue;
         const conn = room.connections.get(playerId);
-        if (!conn) continue;
-        if (now - conn.lastInputTime > inputTimeoutMs) {
+        if (!conn) {
+          log.warn(`Player ${playerId.slice(0, 8)} has no connection in room ${room.id}`);
+          continue;
+        }
+        const timeSinceInput = now - conn.lastInputTime;
+        if (timeSinceInput > inputTimeoutMs) {
           player.isDead = true;
           player.trail = [];
-          room.playerInputs.set(playerId, { moveX: 0, shoot: false, shotId: null });
-          log.warn(`Marking player ${playerId} dead due to inactivity in room ${room.id}`);
+          room.playerInputs.set(playerId, { moveX: 0, x: null, shoot: false, shotId: null });
+          log.warn(`💀 Marking player ${playerId.slice(0, 8)} dead due to inactivity (${Math.round(timeSinceInput / 1000)}s) in room ${room.id}`);
         }
       }
 

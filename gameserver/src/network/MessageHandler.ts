@@ -7,7 +7,7 @@ export interface PlayerConnection {
   ws: WebSocket<PlayerData>;
   playerId: string;
   roomId: string;
-  lastInput: { moveX: number; shoot: boolean; shotId: string | null };
+  lastInput: { moveX: number; x: number | null; shoot: boolean; shotId: string | null };
   lastInputTime: number;
   lastSeenTime: number;
   shootCooldown: number;
@@ -30,7 +30,7 @@ const SHOOT_COOLDOWN_MS = 120;
 export function handleMessage(
   connection: PlayerConnection,
   data: ArrayBuffer,
-  onInput: (playerId: string, moveX: number, shoot: boolean, shotId: string | null) => void,
+  onInput: (playerId: string, moveX: number, x: number | null, shoot: boolean, shotId: string | null) => void,
   onStart?: (playerId: string) => void
 ): void {
   const message = decodeClientMessage(data);
@@ -68,7 +68,7 @@ export function handleMessage(
 function handleInputMessage(
   connection: PlayerConnection,
   message: ClientMessage & { type: 'input' },
-  onInput: (playerId: string, moveX: number, shoot: boolean, shotId: string | null) => void
+  onInput: (playerId: string, moveX: number, x: number | null, shoot: boolean, shotId: string | null) => void
 ): void {
   const now = Date.now();
 
@@ -87,15 +87,19 @@ function handleInputMessage(
       ? message.shotId
       : null;
 
+  // Client-sent x position (authoritative to prevent drift)
+  const x = typeof message.x === 'number' ? message.x : null;
+
   connection.lastInput = {
     moveX: message.moveX,
+    x,
     shoot: canShoot,
     shotId,
   };
   connection.lastInputTime = now;
   connection.lastSeenTime = now;
 
-  onInput(connection.playerId, message.moveX, canShoot, shotId);
+  onInput(connection.playerId, message.moveX, x, canShoot, shotId);
 }
 
 /**
@@ -128,7 +132,7 @@ export function createPlayerConnection(
     ws,
     playerId,
     roomId,
-    lastInput: { moveX: 0, shoot: false, shotId: null },
+    lastInput: { moveX: 0, x: null, shoot: false, shotId: null },
     lastInputTime: Date.now(),
     lastSeenTime: Date.now(),
     shootCooldown: 0,

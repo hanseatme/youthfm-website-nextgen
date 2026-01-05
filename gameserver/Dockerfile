@@ -1,62 +1,35 @@
-# Build stage
-FROM node:20-slim AS builder
+FROM node:20-slim
 
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install all dependencies (including dev)
-RUN npm ci
-
-# Copy source code
-COPY tsconfig.json ./
-COPY src/ ./src/
-
-# Build TypeScript
-RUN npm run build
-
-# Production stage
-FROM node:20-slim AS production
-
-WORKDIR /app
+# Create gameserver user and group
+RUN groupadd -g 1001 gameserver && \
+    useradd -u 1001 -g gameserver -s /bin/bash gameserver
 
 # Install wget for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends wget && \
     rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN groupadd -g 1001 nodejs && \
-    useradd -u 1001 -g nodejs -s /bin/bash gameserver
+WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install dependencies first (better layer caching)
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
 
-# Install production dependencies only
-RUN npm ci --only=production && npm cache clean --force
+# Copy compiled JavaScript to dist folder (keeping original structure)
+COPY dist/ ./dist/
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# Change ownership to gameserver user
+RUN chown -R gameserver:gameserver /app
 
-# Set ownership
-RUN chown -R gameserver:nodejs /app
+# Expose the gameserver port
+EXPOSE 3001
+
+# Environment variables
+ENV PORT=3001
+ENV HOST=0.0.0.0
+ENV NODE_ENV=production
 
 # Switch to non-root user
 USER gameserver
 
-# Expose port
-EXPOSE 3001
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
-
-# Environment defaults
-ENV NODE_ENV=production \
-    PORT=3001 \
-    HOST=0.0.0.0 \
-    TICK_RATE=30 \
-    LOG_LEVEL=info
-
-# Start server
+# Start the server
 CMD ["node", "dist/server.js"]

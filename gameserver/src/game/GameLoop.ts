@@ -22,6 +22,7 @@ import {
   updatePlayerTimers,
   activatePowerup,
   getCurrentSegment,
+  circleCollision,
 } from './Physics.js';
 import { log } from '../utils/logger.js';
 
@@ -122,7 +123,8 @@ export function startGame(room: RoomState): void {
     idx++;
   }
 
-  log.info(`Game started in room ${room.id} with ${playerCount} players`);
+  const playerIds = Array.from(room.players.keys()).map(id => id.slice(0, 8)).join(', ');
+  log.info(`Game started in room ${room.id} with ${playerCount} players: [${playerIds}]`);
 }
 
 /**
@@ -130,7 +132,7 @@ export function startGame(room: RoomState): void {
  */
 export function tick(
   room: RoomState,
-  playerInputs: Map<string, { moveX: number; shoot: boolean; shotId: string | null }>
+  playerInputs: Map<string, { moveX: number; x: number | null; shoot: boolean; shotId: string | null }>
 ): void {
   if (room.status !== 'running') return;
 
@@ -150,8 +152,18 @@ export function tick(
 
     const input = playerInputs.get(playerId);
     const moveX = input?.moveX ?? 0;
+    const clientX = input?.x ?? null;
 
-    updatePlayerPosition(player, moveX, dt, config);
+    // Use client's authoritative position if available (prevents drift from different update rates)
+    if (clientX !== null) {
+      // Clamp to valid bounds for security
+      player.x = Math.max(config.playerSize, Math.min(config.viewportSize - config.playerSize, clientX));
+      // Still update trail
+      player.trail.push({ x: player.x, y: player.y, life: 1.0 });
+      if (player.trail.length > 20) player.trail.shift();
+    } else {
+      updatePlayerPosition(player, moveX, dt, config);
+    }
     updatePlayerTimers(player, dt);
 
     // Handle shooting
@@ -185,16 +197,17 @@ export function tick(
 
   // Check if all players are dead
   let allDead = true;
+  const playerStates: string[] = [];
   for (const player of room.players.values()) {
+    playerStates.push(`${player.id.slice(0, 8)}:${player.isDead ? 'DEAD' : 'ALIVE'}`);
     if (!player.isDead) {
       allDead = false;
-      break;
     }
   }
 
   if (allDead && room.players.size > 0) {
     room.status = 'finished';
-    log.info(`Game finished in room ${room.id}`);
+    log.info(`Game finished in room ${room.id} - Players: [${playerStates.join(', ')}]`);
   }
 }
 
@@ -382,10 +395,29 @@ function checkCollisions(room: RoomState): void {
     if (player.isDead) continue;
 
     // Check asteroid collisions
-    for (const asteroid of room.asteroids) {
-      if (checkAsteroidCollision(player, asteroid, config)) {
-        killPlayer(player);
-        break;
+    for (let ai = room.asteroids.length - 1; ai >= 0; ai--) {
+      const asteroid = room.asteroids[ai];
+
+      // Use raw circle collision to check if player touches asteroid
+      const isTouching = circleCollision(
+        player.x,
+        player.y,
+        config.playerSize * 0.8,
+        asteroid.x,
+        asteroid.y,
+        asteroid.radius * 0.9
+      );
+
+      if (isTouching) {
+        if (player.isInvincible) {
+          // Invincible player destroys asteroid and gets points
+          player.score += 25;
+          room.asteroids.splice(ai, 1);
+        } else {
+          // Normal player dies
+          killPlayer(player, 'asteroid');
+          break;
+        }
       }
     }
 
@@ -393,7 +425,7 @@ function checkCollisions(room: RoomState): void {
 
     // Check obstacle collisions
     if (checkObstacleCollision(player, room.scrollY, room.levelSegments, config)) {
-      killPlayer(player);
+      killPlayer(player, 'obstacle');
     }
 
     if (player.isDead) continue;
@@ -413,10 +445,10 @@ function checkCollisions(room: RoomState): void {
 /**
  * Kill a player
  */
-function killPlayer(player: Player): void {
+function killPlayer(player: Player, reason: string = 'unknown'): void {
   player.isDead = true;
   player.trail = [];
-  log.debug(`Player ${player.id} died with score ${player.score}`);
+  log.info(`💀 Player ${player.id.slice(0, 8)} died (${reason}) with score ${player.score}`);
 }
 
 /**

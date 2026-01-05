@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      console.log('[Token API] Unauthorized request - no user')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -64,8 +65,11 @@ export async function POST(request: NextRequest) {
     const roomId = body.roomId
 
     if (!roomId || typeof roomId !== 'string') {
+      console.log('[Token API] Missing roomId in request')
       return NextResponse.json({ error: 'Room ID is required' }, { status: 400 })
     }
+
+    console.log(`[Token API] Token request for user ${user.id} in room ${roomId}`)
 
     // Get user's profile for display name and color
     const { data: profile } = await supabase
@@ -86,23 +90,42 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (roomError || !roomPlayer) {
+      console.warn(`[Token API] User ${user.id} is not a member of room ${roomId}:`, roomError?.message || 'No player record found')
       return NextResponse.json({ error: 'Not a member of this room' }, { status: 403 })
     }
 
+    console.log(`[Token API] User ${user.id} verified as member of room ${roomId}`)
+
     // Get the game server API key from private settings
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    console.log(`[Token API] Service role key available: ${hasServiceKey}`)
+
     const serviceClient = (await createServiceClient()) as any
+    console.log(`[Token API] Service client created, fetching API key...`)
+
     const { data: apiKeyRow, error: keyError } = await serviceClient
       .from('private_settings')
       .select('value')
       .eq('key', 'gameserver_api_key')
       .single()
 
-    if (keyError || !apiKeyRow?.value) {
+    if (keyError) {
+      console.error(`[Token API] Failed to fetch API key:`, keyError.message, keyError.code)
       return NextResponse.json(
         { error: 'Game server not configured' },
         { status: 503 }
       )
     }
+
+    if (!apiKeyRow?.value) {
+      console.error(`[Token API] API key row exists but value is empty`)
+      return NextResponse.json(
+        { error: 'Game server not configured' },
+        { status: 503 }
+      )
+    }
+
+    console.log(`[Token API] API key retrieved successfully`)
 
     const apiKey = String(apiKeyRow.value)
     if (!apiKey || apiKey.length < 16) {
@@ -125,9 +148,10 @@ export async function POST(request: NextRequest) {
       3600 // 1 hour (supports reconnects during longer sessions)
     )
 
+    console.log(`[Token API] ✓ Token created successfully for user ${user.id}`)
     return NextResponse.json({ token })
   } catch (error) {
-    console.error('Failed to generate game server token:', error)
+    console.error('[Token API] Failed to generate game server token:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

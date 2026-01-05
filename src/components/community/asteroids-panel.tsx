@@ -107,6 +107,7 @@ export function AsteroidsPanel() {
     url: null,
   })
   const [gameServerToken, setGameServerToken] = useState<string | null>(null)
+  const [tokenFetchState, setTokenFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [iframeReady, setIframeReady] = useState(false)
@@ -423,39 +424,91 @@ export function AsteroidsPanel() {
 
   // Fetch game server token when entering a room with game server enabled
   useEffect(() => {
+    let cancelled = false
+    let retryCount = 0
+    const maxRetries = 3
+    const retryDelayMs = 500 // Initial delay, will increase with each retry
+
     async function fetchGameServerToken() {
+      // Reset state if not in multiplayer or no room
       if (!gameServerSettings.enabled || !gameServerSettings.url) {
         setGameServerToken(null)
+        setTokenFetchState('idle')
         return
       }
 
       if (!room?.id || mode !== 'multi') {
         setGameServerToken(null)
+        setTokenFetchState('idle')
         return
       }
 
-      try {
-        const response = await fetch('/api/games/asteroids/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomId: room.id }),
-        })
+      setTokenFetchState('loading')
+      console.log('[Token] Starting token fetch for room:', room.id)
 
-        if (!response.ok) {
-          console.error('Failed to fetch game server token:', response.status)
+      while (retryCount <= maxRetries && !cancelled) {
+        try {
+          const response = await fetch('/api/games/asteroids/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomId: room.id }),
+          })
+
+          if (cancelled) return
+
+          if (response.ok) {
+            const { token } = await response.json()
+            console.log('[Token] ✓ Token fetched successfully')
+            setGameServerToken(token)
+            setTokenFetchState('success')
+            return
+          }
+
+          // Handle specific error cases
+          const errorData = await response.json().catch(() => ({}))
+          console.warn(`[Token] Fetch failed (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
+            status: response.status,
+            error: errorData.error
+          })
+
+          // If 403 "Not a member", it might be a timing issue - retry after delay
+          if (response.status === 403 && retryCount < maxRetries) {
+            retryCount++
+            const delay = retryDelayMs * retryCount
+            console.log(`[Token] Will retry in ${delay}ms...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            continue
+          }
+
+          // Other errors or max retries reached
+          console.error('[Token] Token fetch failed permanently:', response.status, errorData.error)
           setGameServerToken(null)
+          setTokenFetchState('error')
+          return
+        } catch (err) {
+          if (cancelled) return
+          console.error('[Token] Network error fetching token:', err)
+
+          if (retryCount < maxRetries) {
+            retryCount++
+            const delay = retryDelayMs * retryCount
+            console.log(`[Token] Will retry after network error in ${delay}ms...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            continue
+          }
+
+          setGameServerToken(null)
+          setTokenFetchState('error')
           return
         }
-
-        const { token } = await response.json()
-        setGameServerToken(token)
-      } catch (err) {
-        console.error('Failed to fetch game server token:', err)
-        setGameServerToken(null)
       }
     }
 
     fetchGameServerToken()
+
+    return () => {
+      cancelled = true
+    }
   }, [gameServerSettings.enabled, gameServerSettings.url, room?.id, mode])
 
   // push room state into iframe (so UI/actions happen inside the game)
@@ -463,6 +516,15 @@ export function AsteroidsPanel() {
   useEffect(() => {
     if (!iframeReady) return
     if (!user) return
+
+    // In multiplayer with gameserver enabled, wait for token fetch to complete
+    // This prevents sending init before we know if we have a valid token
+    const isMultiplayerWithGameServer = mode === 'multi' && room?.id && gameServerSettings.enabled && gameServerSettings.url
+    if (isMultiplayerWithGameServer && tokenFetchState === 'loading') {
+      console.log('[Init] Waiting for token fetch to complete before sending init...')
+      return
+    }
+
     const role =
       mode === 'single'
         ? 'single'
@@ -487,6 +549,15 @@ export function AsteroidsPanel() {
       ? gameServerSettings.url
       : null
 
+    console.log('[Init] Sending init to game:', {
+      role,
+      mode,
+      hasGameServerUrl: !!gameServerUrl,
+      hasToken: !!gameServerToken,
+      tokenFetchState,
+      roomId: room?.id
+    })
+
     sendToGame('init', {
       playerId: user.id,
       displayName,
@@ -500,7 +571,7 @@ export function AsteroidsPanel() {
       roundNumber: room?.round_number || 1,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [iframeReady, user?.id, mode, room?.id, room?.status, room?.vote_action, room?.code, room?.round_number, locale, displayName, localColor, gameServerSettings.enabled, gameServerSettings.url, gameServerToken])
+  }, [iframeReady, user?.id, mode, room?.id, room?.status, room?.vote_action, room?.code, room?.round_number, locale, displayName, localColor, gameServerSettings.enabled, gameServerSettings.url, gameServerToken, tokenFetchState])
 
   const playersQuery = useQuery({
     queryKey: ['asteroids_room_players', room?.id],
@@ -804,12 +875,20 @@ export function AsteroidsPanel() {
       toast.success(locale === 'de' ? 'Match gestartet!' : 'Match started!')
       try {
         await channelRef.current?.send({ type: 'broadcast', event: 'reset', payload: { roomId: data.id } })
-        await channelRef.current?.send({ type: 'broadcast', event: 'start', payload: { roomId: data.id } })
+        await channelRef.current?.send({ type: 'broadcast', event: 'start', payload: { roomId: data.id, roundNumber: data.round_number } })
       } catch {
         // ignore
       }
       sendToGame('reset')
-      sendToGame('start', { simulate: true, expectedPlayers: playerCount })
+      // Include gameserver info so the iframe can send start signal to gameserver
+      sendToGame('start', {
+        simulate: true,
+        expectedPlayers: playerCount,
+        roundNumber: data.round_number,
+        roomId: data.id,
+        gameServerUrl: gameServerSettings.enabled && gameServerSettings.url && gameServerToken ? gameServerSettings.url : null,
+        gameServerToken: gameServerSettings.enabled && gameServerSettings.url && gameServerToken ? gameServerToken : null,
+      })
     },
     onError: (err: any) => {
       console.error(err)
@@ -902,14 +981,28 @@ export function AsteroidsPanel() {
 
       setRemoteStates({})
       setLocalState((prev) => (prev ? { ...prev, score: 0, isDead: false } : prev))
+
+      // Send reset to clear previous round state
       sendToGame('reset')
+
       try {
         await channelRef.current?.send({ type: 'broadcast', event: 'reset', payload: { roomId: data.id } })
-        await channelRef.current?.send({ type: 'broadcast', event: 'start', payload: { roomId: data.id } })
+        await channelRef.current?.send({ type: 'broadcast', event: 'start', payload: { roomId: data.id, roundNumber: data.round_number } })
       } catch {
         // ignore
       }
-      sendToGame('start', { simulate: true, expectedPlayers: playerCount })
+
+      // Important: Include roundNumber so the iframe can reconnect to gameserver with the new round
+      // This ensures the gameserver properly resets player states for the new round
+      sendToGame('start', {
+        simulate: true,
+        expectedPlayers: playerCount,
+        roundNumber: data.round_number,
+        roomId: data.id,
+        // Include gameserver info for reconnection
+        gameServerUrl: gameServerSettings.enabled && gameServerSettings.url && gameServerToken ? gameServerSettings.url : null,
+        gameServerToken: gameServerSettings.enabled && gameServerSettings.url && gameServerToken ? gameServerToken : null,
+      })
     },
     onError: (err: any) => {
       console.error(err)
